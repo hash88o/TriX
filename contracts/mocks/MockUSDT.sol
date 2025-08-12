@@ -1,49 +1,89 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 /**
  * @title MockUSDT
- * @dev Mock USDT token for testing purposes with 6 decimals
+ * @dev Mock USDT token for testing purposes
+ * @dev Mimics USDT with 6 decimals and minting capabilities
  */
-contract MockUSDT {
-    string public name = "Tether USD";
-    string public symbol = "USDT";
-    uint8 public decimals = 6;
-    uint256 public totalSupply;
-    
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    
-    function mint(address to, uint256 amount) external {
-        balanceOf[to] += amount;
-        totalSupply += amount;
-        emit Transfer(address(0), to, amount);
+contract MockUSDT is ERC20, Ownable {
+    uint8 private constant DECIMALS = 6;
+
+    /**
+     * @dev Constructor that gives the deployer an initial supply
+     * @param initialSupply Initial supply to mint to deployer
+     */
+    constructor(
+        uint256 initialSupply
+    ) ERC20("Mock USDT", "USDT") Ownable(msg.sender) {
+        if (initialSupply > 0) {
+            _mint(msg.sender, initialSupply);
+        }
     }
-    
-    function transfer(address to, uint256 amount) external returns (bool) {
-        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
+
+    /**
+     * @dev Returns the number of decimals used to get its user representation
+     */
+    function decimals() public view virtual override returns (uint8) {
+        return DECIMALS;
     }
-    
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        require(balanceOf[from] >= amount, "Insufficient balance");
-        require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        allowance[from][msg.sender] -= amount;
-        emit Transfer(from, to, amount);
-        return true;
+
+    /**
+     * @dev Mint new tokens to specified address
+     * @param to Address to mint tokens to
+     * @param amount Amount of tokens to mint
+     */
+    function mint(address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "MockUSDT: cannot mint to zero address");
+        require(amount > 0, "MockUSDT: amount must be greater than 0");
+
+        _mint(to, amount);
     }
-    
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
+
+    /**
+     * @dev Faucet function - anyone can get 1000 USDT once per day
+     */
+    mapping(address => uint256) private _lastFaucetClaim;
+    uint256 private constant FAUCET_AMOUNT = 1000 * 10 ** DECIMALS; // 1000 USDT
+    uint256 private constant FAUCET_COOLDOWN = 24 hours;
+
+    function faucet() external {
+        require(
+            block.timestamp >= _lastFaucetClaim[msg.sender] + FAUCET_COOLDOWN,
+            "MockUSDT: faucet cooldown not met"
+        );
+
+        _lastFaucetClaim[msg.sender] = block.timestamp;
+        _mint(msg.sender, FAUCET_AMOUNT);
+    }
+
+    /**
+     * @dev Get time until next faucet claim
+     * @param account Address to check
+     * @return Time in seconds until next claim (0 if can claim now)
+     */
+    function faucetCooldown(address account) external view returns (uint256) {
+        uint256 nextClaim = _lastFaucetClaim[account] + FAUCET_COOLDOWN;
+        if (block.timestamp >= nextClaim) {
+            return 0;
+        }
+        return nextClaim - block.timestamp;
+    }
+
+    /**
+     * @dev Burn tokens from caller's account
+     * @param amount Amount of tokens to burn
+     */
+    function burn(uint256 amount) external {
+        require(amount > 0, "MockUSDT: amount must be greater than 0");
+        require(
+            balanceOf(msg.sender) >= amount,
+            "MockUSDT: insufficient balance"
+        );
+
+        _burn(msg.sender, amount);
     }
 }

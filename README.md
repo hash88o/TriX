@@ -1,380 +1,407 @@
-# TriX Blockchain Gaming System
+# 🎮 TriX Gaming Platform
 
-A blockchain-based PvP gaming incentive system that enables trustless match staking, secure token transfers, and seamless USDT-to-GameToken purchases.
+> A complete blockchain-based competitive gaming platform with smart contracts, real-time leaderboards, and trustless match staking.
 
-## 🎮 Overview
+## 📖 Project Overview
 
-TriX is a comprehensive gaming platform that combines blockchain technology with competitive gaming. Players can:
+TriX is a decentralized gaming platform that enables players to:
 
-- Purchase GameTokens (GT) using USDT at a 1:1 conversion rate
-- Create and join PvP matches with equal stakes
-- Participate in trustless, automated payouts
-- Enjoy secure, transparent gaming experiences
+- 💰 **Purchase GameTokens (GT)** using USDT through an automated exchange
+- 🎯 **Create and join PvP matches** with equal stakes using GT tokens
+- 🏆 **Compete in trustless matches** with automated escrow and payouts
+- 📊 **Track performance** on real-time leaderboards with comprehensive statistics
+- 🚰 **Access test funds** through built-in USDT faucet for development
 
-## 🏗️ Architecture
+## 🎯 Key Features
 
-### Smart Contracts
+### 🔗 Blockchain Infrastructure
 
-1. **GameToken (GT)** - ERC-20 compliant gaming token
-   - Only TokenStore can mint new tokens
-   - Includes emergency pause functionality
-   - Access control for minting permissions
+- **Smart Contracts**: Secure, audited Solidity contracts for token management and match escrow
+- **ERC-20 Tokens**: GameToken (GT) with 18 decimals for gaming economy
+- **Mock USDT**: 6-decimal test token with built-in faucet for development
+- **Automated Deployment**: One-command deployment with environment setup
 
-2. **TokenStore** - USDT to GT conversion platform
-   - 1:1 USDT to GT conversion rate
-   - Handles USDT payments and GT minting
-   - Treasury management and emergency controls
+### 🎮 Gaming Mechanics
 
-3. **PlayGame** - Match staking and escrow system
-   - Accepts equal GT stakes from two players
-   - Implements escrow functionality
-   - Automated winner payouts with platform fees
-   - Re-entrancy protection and access controls
+- **Match Creation**: Stake GT tokens and wait for opponents
+- **Equal Stakes**: Fair play with matching stake requirements
+- **Automated Escrow**: Secure token holding during matches
+- **Winner Payouts**: 95% of total pot goes to winner (5% platform fee)
+- **Match Cancellation**: Cancel pending matches and receive refunds
 
-### System Flow
+### 📊 Real-time Analytics
+
+- **Gaming Leaderboard**: Rankings by GT won, win rates, and match history
+- **Purchase Leaderboard**: Top players by USDT spending
+- **Live Event Tracking**: Real-time blockchain event monitoring
+- **Platform Statistics**: Total volume, matches, and player metrics
+
+### 🌐 Full-Stack Platform
+
+- **Backend API**: Express.js server with comprehensive endpoints
+- **Frontend Interface**: Modern web UI with MetaMask integration
+- **Service Orchestration**: One-command startup for all services
+- **Development Tools**: Testing suite, deployment scripts, and monitoring
+
+## 🏗️ Project Architecture
 
 ```
-1. Player purchases GT with USDT via TokenStore
-2. Player creates match and stakes GT via PlayGame
-3. Second player joins match with equal stake
-4. Game server determines winner
-5. API Gateway calls completeMatch() with winner
-6. Winner receives payout (total stake - platform fee)
+📁 TriX Gaming Platform/
+├── 📁 contracts/              # Smart Contracts (Solidity)
+│   ├── GameToken.sol          # ERC-20 gaming token (18 decimals)
+│   ├── PlayGame.sol           # Match escrow & payout system
+│   ├── TokenStore.sol         # USDT → GT exchange (1:1 ratio)
+│   ├── 📁 interfaces/
+│   │   └── IUSDT.sol          # USDT token interface
+│   └── 📁 mocks/
+│       └── MockUSDT.sol       # Test USDT with faucet (6 decimals)
+├── 📁 api/                    # Backend API (Express.js)
+│   ├── index.js               # Main server with all endpoints
+│   └── package.json           # API dependencies
+├── 📁 tools/                  # Real-time Analytics
+│   └── leaderboard.js         # Event listener & leaderboard API
+├── 📁 scripts/                # Deployment & Orchestration
+│   ├── deploy.js              # Deploy contracts + generate .env
+│   ├── start-all.js           # Launch all services
+│   └── verify-deployment.js   # Deployment verification
+├── 📁 test/                   # Comprehensive Test Suite
+│   ├── GameToken.test.js      # Token contract tests
+│   ├── PlayGame.test.js       # Match system tests
+│   ├── TokenStore.test.js     # Exchange mechanism tests
+│   └── 📁 integration/
+│       └── E2E.test.js        # End-to-end testing
+├── 📁 web/                    # Frontend Interface
+│   └── index.html             # Complete gaming platform UI
+├── hardhat.config.js          # Hardhat blockchain configuration
+├── package.json               # Main project dependencies
+└── README.md                  # This documentation
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start Guide
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- Hardhat development environment
-- MetaMask or similar wallet
+- **Node.js** 18+ and npm
+- **MetaMask** browser extension
+- **Git** for cloning the repository
 
-### Installation
+### 1. Clone and Install
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd trix-blockchain-gaming
-
-# Install dependencies
+git clone <your-repository-url>
+cd trix-gaming-platform
 npm install
-
-# Compile contracts
-npm run compile
-
-# Run tests
-npm test
-
-# Generate coverage report
-npm run coverage
 ```
 
-### Local Development
+### 2. Start Local Blockchain
+
+Open **Terminal 1**:
 
 ```bash
-# Start local blockchain
-npx hardhat node
-
-# Deploy contracts to local network
-npx hardhat run scripts/deploy.js --network localhost
-
-# Run tests with gas reporting
-npm run gas-report
+npm run node
 ```
 
-### Testnet Deployment
+This starts a local Hardhat blockchain with pre-funded test accounts.
+
+### 3. Deploy Smart Contracts
+
+Open **Terminal 2**:
 
 ```bash
-# Set environment variables
-export PRIVATE_KEY="your-private-key"
-export TESTNET_RPC_URL="your-testnet-rpc-url"
-export USDT_ADDRESS="testnet-usdt-address"
-export TREASURY_ADDRESS="your-treasury-address"
-
-# Deploy to testnet
-npm run deploy:testnet
+npm run deploy
 ```
 
-### Mainnet Deployment
+This will:
+
+- ✅ Deploy all smart contracts (GameToken, TokenStore, PlayGame, MockUSDT)
+- ✅ Set up proper roles and permissions
+- ✅ Generate `.env` file with contract addresses
+- ✅ Create ABI files for the API
+
+### 4. Start All Services
+
+Open **Terminal 3**:
 
 ```bash
-# Set environment variables
-export PRIVATE_KEY="your-private-key"
-export MAINNET_RPC_URL="your-mainnet-rpc-url"
-export USDT_ADDRESS="0xdAC17F958D2ee523a2206206994597C13D831ec7" # Mainnet USDT
-export TREASURY_ADDRESS="your-treasury-address"
-export ETHERSCAN_API_KEY="your-etherscan-api-key"
-
-# Deploy to mainnet
-npm run deploy:mainnet
-
-# Verify contracts
-npm run verify
+npm start
 ```
 
-## 📋 Contract Addresses
+This launches:
 
-After deployment, contract addresses will be saved to `deployments/{network}.json`:
+- 🌐 **Frontend**: http://localhost:8080
+- 📡 **Backend API**: http://localhost:3000
+- 📊 **Leaderboard API**: http://localhost:3001
 
-```json
-{
-  "network": "sepolia",
-  "contracts": {
-    "GameToken": "0x...",
-    "TokenStore": "0x...",
-    "PlayGame": "0x..."
-  },
-  "configuration": {
-    "USDT_ADDRESS": "0x...",
-    "TREASURY_ADDRESS": "0x...",
-    "INITIAL_SUPPLY": "1000000000000000000000000"
-  }
-}
+### 5. Connect and Play
+
+1. Open http://localhost:8080 in your browser
+2. Connect MetaMask to localhost network (Chain ID: 31337)
+3. Get test USDT from the faucet (1000 USDT button)
+4. Purchase GT tokens using your USDT
+5. Create or join matches and start gaming!
+
+## 🎮 How to Play
+
+### Getting Started
+
+1. **Get Test Funds**: Click "Get Test USDT" to receive 1000 USDT
+2. **Buy GameTokens**: Exchange USDT for GT at 1:1 ratio
+3. **Check Balance**: View your ETH, USDT, and GT balances
+
+### Playing Matches
+
+1. **Create Match**: Enter GT stake amount and click "Create Match"
+2. **Join Match**: Browse available matches and click "Join Match"
+3. **Match Completion**: Winners receive 95% of total pot automatically
+
+### Tracking Performance
+
+1. **Gaming Leaderboard**: View top players by GT won and win rates
+2. **Purchase Rankings**: See top USDT spenders
+3. **Event Log**: Track all platform transactions in real-time
+4. **Platform Stats**: View overall platform metrics
+
+## 🔧 API Documentation
+
+### Backend API Endpoints (Port 3000)
+
+#### 🔗 System
+
+```bash
+GET  /health              # API health check
+GET  /stats               # Platform statistics
 ```
 
-## 🔧 Configuration
+#### 💰 Token Operations
 
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Network Configuration
-PRIVATE_KEY=your-private-key
-TESTNET_RPC_URL=https://sepolia.infura.io/v3/YOUR-PROJECT-ID
-MAINNET_RPC_URL=https://mainnet.infura.io/v3/YOUR-PROJECT-ID
-
-# Contract Addresses
-USDT_ADDRESS=0xdAC17F958D2ee523a2206206994597C13D831ec7
-TREASURY_ADDRESS=your-treasury-address
-
-# API Keys
-ETHERSCAN_API_KEY=your-etherscan-api-key
-COINMARKETCAP_API_KEY=your-coinmarketcap-api-key
+```bash
+POST /faucet/usdt         # Get test USDT (1000 USDT)
+GET  /balance/:address    # Get GT balance for address
+GET  /usdt-balance/:address # Get USDT balance for address
+GET  /purchase?amount=10  # Calculate GT for USDT amount
 ```
 
-### Network Configuration
+#### 🎮 Match Management
 
-Update `hardhat.config.js` with your network settings:
+```bash
+GET  /matches/pending     # Get available matches
+GET  /match/:matchId      # Get match details
+GET  /player/:address/matches # Get player's match history
+POST /match/result        # Submit match result (API Gateway)
+POST /match/refund        # Cancel/refund match
+```
 
-```javascript
-networks: {
-  testnet: {
-    url: process.env.TESTNET_RPC_URL,
-    accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    chainId: 11155111, // Sepolia
-  },
-  mainnet: {
-    url: process.env.MAINNET_RPC_URL,
-    accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    chainId: 1,
-  },
-}
+### Leaderboard API Endpoints (Port 3001)
+
+```bash
+GET /health               # Service health check
+GET /leaderboard?limit=10 # Gaming leaderboard (top players)
+GET /purchases?limit=10   # Purchase leaderboard (top spenders)
+GET /player/:address      # Individual player statistics
+GET /events?limit=50      # Recent platform events
+GET /stats                # Platform analytics
 ```
 
 ## 🧪 Testing
 
-### Run All Tests
+### Run Smart Contract Tests
 
 ```bash
-npm test
+npm test                  # Run all tests
+npm run coverage          # Generate coverage report
 ```
 
-### Run Specific Test Files
+### Test Individual Components
 
 ```bash
-# Test GameToken contract
-npx hardhat test test/GameToken.test.js
-
-# Test TokenStore contract
-npx hardhat test test/TokenStore.test.js
-
-# Test PlayGame contract
-npx hardhat test test/PlayGame.test.js
+npx hardhat test test/GameToken.test.js    # Token tests
+npx hardhat test test/PlayGame.test.js     # Match tests
+npx hardhat test test/TokenStore.test.js   # Exchange tests
 ```
 
-### Coverage Report
+### Integration Testing
 
 ```bash
-npm run coverage
+# Complete end-to-end testing
+npm run node              # Terminal 1: Start blockchain
+npm run deploy            # Terminal 2: Deploy contracts
+npm start                 # Terminal 3: Start services
+# Open http://localhost:8080 and test manually
 ```
 
-### Gas Optimization
+## 📋 Smart Contract Details
 
-```bash
-npm run gas-report
-```
+### GameToken.sol
+
+- **Type**: ERC-20 token with 18 decimals
+- **Symbol**: GT (GameToken)
+- **Features**: Minting (TokenStore only), burning, pausable
+- **Security**: Access control, reentrancy protection
+
+### TokenStore.sol
+
+- **Function**: USDT → GT exchange at 1:1 ratio
+- **Features**: Automated minting, treasury management
+- **Security**: Reentrancy guards, access control
+
+### PlayGame.sol
+
+- **Function**: Match creation, joining, and escrow
+- **Features**: Equal stakes, automated payouts, 5% platform fee
+- **Security**: Access control, match state validation
+
+### MockUSDT.sol
+
+- **Function**: Test USDT token for development
+- **Features**: Built-in faucet (1000 USDT/day), 6 decimals
+- **Purpose**: Local testing and development
 
 ## 🔒 Security Features
 
-### Access Controls
+### Smart Contract Security
 
-- **MINTER_ROLE**: Only TokenStore can mint GT tokens
-- **API_GATEWAY_ROLE**: Only authorized API Gateway can complete matches
-- **PAUSER_ROLE**: Emergency pause functionality
-- **DEFAULT_ADMIN_ROLE**: Contract administration
+- ✅ **Reentrancy Guards**: All state-changing functions protected
+- ✅ **Access Control**: Role-based permissions (Admin, Minter, API Gateway)
+- ✅ **Pausable**: Emergency stop functionality
+- ✅ **Input Validation**: Comprehensive parameter checking
+- ✅ **CEI Pattern**: Checks-Effects-Interactions implementation
 
-### Security Measures
+### Platform Security
 
-- Re-entrancy protection on all fund transfers
-- Input validation and sanitization
-- Emergency pause mechanisms
-- Access control on sensitive functions
-- Comprehensive error handling
+- ✅ **MetaMask Integration**: Secure transaction signing
+- ✅ **Environment Protection**: Sensitive data in .env (gitignored)
+- ✅ **CORS Configuration**: Proper cross-origin resource sharing
+- ✅ **Error Handling**: Graceful failure management
 
-### Audit Checklist
+## 🛠️ Development Commands
 
-- [ ] External security audit completed
-- [ ] Access controls verified
-- [ ] Re-entrancy protection tested
-- [ ] Emergency functions tested
-- [ ] Gas optimization verified
-- [ ] Test coverage > 95%
+### Individual Services
 
-## 📊 Gas Optimization
-
-### Current Gas Costs (approximate)
-
-| Function | Gas Cost |
-|----------|----------|
-| GameToken.mint() | ~50,000 |
-| TokenStore.purchaseTokens() | ~120,000 |
-| PlayGame.createMatch() | ~80,000 |
-| PlayGame.joinMatch() | ~60,000 |
-| PlayGame.completeMatch() | ~45,000 |
-
-### Optimization Strategies
-
-- Use `unchecked` blocks for safe arithmetic
-- Optimize storage layout
-- Batch operations where possible
-- Use events instead of storage for non-critical data
-
-## 🚨 Emergency Procedures
-
-### Pause System
-
-```javascript
-// Pause all operations
-await gameToken.pause();
-await tokenStore.pause();
-await playGame.pause();
-
-// Unpause when safe
-await gameToken.unpause();
-await tokenStore.unpause();
-await playGame.unpause();
+```bash
+npm run frontend          # Frontend only (port 8080)
+npm run api              # Backend API only (port 3000)
+npm run leaderboard      # Leaderboard only (port 3001)
 ```
 
-### Emergency Withdrawals
+### Development Tools
 
-```javascript
-// Withdraw stuck tokens
-await tokenStore.emergencyWithdraw(tokenAddress, recipient, amount);
-await playGame.emergencyWithdrawGT(recipient, amount);
+```bash
+npm run compile          # Compile smart contracts
+npm run lint             # Lint Solidity code
+npm run gas-report       # Analyze gas usage
 ```
 
-## 🔄 API Integration
+### Network Deployment
 
-### Required API Endpoints
-
-1. **POST /purchase** - Handle GT purchases
-2. **POST /match/start** - Initialize match staking
-3. **POST /match/result** - Submit match results
-
-### Authentication
-
-Use JWT tokens for API Gateway authentication:
-
-```javascript
-// Example API Gateway integration
-const apiGateway = new ethers.Wallet(PRIVATE_KEY, provider);
-await playGame.connect(apiGateway).completeMatch(matchId, winner);
+```bash
+npm run deploy:testnet   # Deploy to testnet (requires .env)
+npm run deploy:mainnet   # Deploy to mainnet (requires .env)
 ```
 
-## 📈 Monitoring
+## 🌐 Environment Configuration
 
-### Key Metrics
+The deployment script automatically creates a `.env` file, but you can customize:
 
-- Total GT supply and circulation
-- USDT to GT conversion volume
-- Match creation and completion rates
-- Platform fee collection
-- Gas usage optimization
+```env
+# Blockchain Configuration
+RPC_URL=http://127.0.0.1:8545
+PRIVATE_KEY=your_private_key_here
 
-### Alerting
+# Contract Addresses (auto-generated)
+GAMETOKEN_ADDR=0x...
+TOKENSTORE_ADDR=0x...
+PLAYGAME_ADDR=0x...
+MOCKUSDT_ADDR=0x...
 
-Set up monitoring for:
-- Contract pause events
-- Large token transfers
-- Failed transactions
-- Gas price spikes
-- Unusual activity patterns
+# API Configuration
+PORT=3000
+LEADERBOARD_PORT=3001
+
+# Treasury Configuration
+TREASURY_ADDRESS=0x...
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Services not starting:**
+
+- Ensure ports 3000, 3001, 8080 are available
+- Check that blockchain node is running first
+- Verify .env file contains contract addresses
+
+**MetaMask connection issues:**
+
+- Switch to localhost network (Chain ID: 31337)
+- Import test account using private key from blockchain output
+- Reset MetaMask account if transactions seem stuck
+
+**Transaction failures:**
+
+- Check gas limits and network congestion
+- Ensure sufficient ETH for gas fees
+- Verify contract addresses in .env
+
+**Frontend not loading:**
+
+- Confirm all services are running
+- Check browser console for errors
+- Try refreshing the page
+
+### Getting Help
+
+1. **Check Logs**: Service logs appear in the terminal
+2. **API Health**: Visit http://localhost:3000/health
+3. **Leaderboard Health**: Visit http://localhost:3001/health
+4. **Browser Console**: Check for JavaScript errors
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+We welcome contributions! Please follow these steps:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
 
 ### Development Standards
 
-- Follow Solidity style guide
-- Write comprehensive tests
-- Document all functions
-- Use TypeScript for JavaScript code
-- Maintain >95% test coverage
+- Write comprehensive tests for new features
+- Follow existing code style and patterns
+- Update documentation for user-facing changes
+- Ensure all tests pass before submitting
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🙏 Acknowledgments
 
-For support and questions:
+Built with:
 
-- Create an issue on GitHub
-- Check the documentation
-- Review the test files for examples
-- Contact the development team
-
-## 🔮 Roadmap
-
-### Phase 1: Smart Contracts ✅
-- [x] GameToken contract
-- [x] TokenStore contract
-- [x] PlayGame contract
-- [x] Comprehensive testing
-- [x] Security implementation
-
-### Phase 2: Integration & Testing
-- [ ] Contract integration testing
-- [ ] Security audit
-- [ ] Testnet deployment
-- [ ] Performance optimization
-
-### Phase 3: API Gateway
-- [ ] RESTful API development
-- [ ] Blockchain integration layer
-- [ ] Authentication system
-- [ ] Rate limiting and validation
-
-### Phase 4: Frontend Interface
-- [ ] Wallet integration
-- [ ] User interface development
-- [ ] Admin dashboard
-- [ ] Real-time updates
-
-### Phase 5: Deployment & Operations
-- [ ] Mainnet deployment
-- [ ] Monitoring setup
-- [ ] Documentation completion
-- [ ] Community launch
+- **Hardhat** for smart contract development
+- **OpenZeppelin** for secure contract templates
+- **Express.js** for backend API
+- **ethers.js** for blockchain interaction
+- **MetaMask** for wallet integration
 
 ---
 
-**Disclaimer**: This software is provided "as is" without warranty. Use at your own risk. Always test thoroughly on testnets before mainnet deployment.
+## 🎯 Ready to Play?
+
+**For Players:**
+
+```bash
+npm install && npm run node && npm run deploy && npm start
+```
+
+Then open http://localhost:8080 and start gaming! 🎮
+
+**For Developers:**
+Explore the codebase, run tests, and contribute to the future of blockchain gaming! 🚀
+
+---
+
+_Built with ❤️ for the blockchain gaming community_

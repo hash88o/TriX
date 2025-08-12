@@ -7,14 +7,18 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "coverage": "hardhat coverage",
+    "deploy": "hardhat run scripts/deploy.js --network localhost",
     "deploy:testnet": "hardhat run scripts/deploy.js --network testnet",
     "deploy:mainnet": "hardhat run scripts/deploy.js --network mainnet",
     "verify": "hardhat verify",
     "lint": "solhint 'contracts/**/*.sol'",
     "lint:fix": "solhint 'contracts/**/*.sol' --fix",
     "gas-report": "set REPORT_GAS=true && hardhat test",
-    "frontend": "node serve-frontend.js",
-    "start": "node serve-frontend.js"
+    "node": "hardhat node",
+    "start": "node scripts/start-all.js",
+    "frontend": "npx http-server web -p 8080 --cors",
+    "api": "node api/index.js",
+    "leaderboard": "node tools/leaderboard.js"
   },
   "keywords": [
     "blockchain",
@@ -33,7 +37,7 @@
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.0",
     "@typechain/ethers-v6": "^0.5.0",
-    "@typechain/hardhat": "^8.0.3",
+    "@typechain/hardhat": "^9.1.0",
     "@types/chai": "^4.3.5",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.5.0",
@@ -48,6 +52,11 @@
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.0",
     "@openzeppelin/contracts-upgradeable": "^5.0.0",
-    "dotenv": "^17.2.1"
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.1",
+    "express": "^4.18.2",
+    "ethers": "^6.7.1",
+    "cors": "^2.8.5",
+    "http-server": "^14.1.1"
   }
 }
