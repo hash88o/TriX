@@ -1,0 +1,53 @@
+{
+  "name": "trix-blockchain-gaming",
+  "version": "1.0.0",
+  "description": "TriX Blockchain Gaming System - PvP gaming incentive system with trustless match staking",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network testnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network mainnet",
+    "verify": "hardhat verify",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "lint:fix": "solhint 'contracts/**/*.sol' --fix",
+    "gas-report": "set REPORT_GAS=true && hardhat test",
+    "frontend": "node serve-frontend.js",
+    "start": "node serve-frontend.js"
+  },
+  "keywords": [
+    "blockchain",
+    "gaming",
+    "ethereum",
+    "smart-contracts",
+    "pvp",
+    "staking"
+  ],
+  "author": "TriX Development Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.2",
+    "@nomicfoundation/hardhat-ethers": "^3.0.4",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^8.0.3",
+    "@types/chai": "^4.3.5",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.5.0",
+    "chai": "^4.3.7",
+    "ethers": "^6.7.1",
+    "hardhat": "^2.17.1",
+    "hardhat-gas-reporter": "^1.0.9",
+    "solhint": "^4.0.0",
+    "solidity-coverage": "^0.8.4",
+    "typechain": "^8.3.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
+    "dotenv": "^17.2.1"
+  }
+}

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TriX - Blockchain Gaming System</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-gray-900 text-white min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-purple-800 shadow-lg">
+      <div class="max-w-7xl mx-auto px-4">
+        <div class="flex justify-between items-center py-4">
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-gamepad text-2xl text-purple-300"></i>
+            <span class="text-xl font-bold">TriX Gaming</span>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span
+              id="networkStatus"
+              class="px-3 py-1 bg-gray-700 rounded-full text-sm"
+              >Not Connected</span
+            >
+            <button
+              id="connectWallet"
+              class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition-colors"
+            >
+              Connect Wallet
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+      <!-- Wallet Status -->
+      <div id="walletStatus" class="bg-gray-800 rounded-lg p-6 mb-8 hidden">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <i class="fas fa-wallet mr-2 text-green-400"></i>
+          Wallet Connected
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-gray-700 rounded-lg p-4">
+            <div class="text-sm text-gray-400">Address</div>
+            <div id="walletAddress" class="font-mono text-sm truncate"></div>
+          </div>
+          <div class="bg-gray-700 rounded-lg p-4">
+            <div class="text-sm text-gray-400">ETH Balance</div>
+            <div id="ethBalance" class="font-semibold">0.00 ETH</div>
+          </div>
+          <div class="bg-gray-700 rounded-lg p-4">
+            <div class="text-sm text-gray-400">GT Balance</div>
+            <div id="gtBalance" class="font-semibold">0.00 GT</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Token Purchase Section -->
+        <div class="bg-gray-800 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <i class="fas fa-coins mr-2 text-yellow-400"></i>
+            Buy GameTokens (GT)
+          </h2>
+          <p class="text-gray-400 mb-4">
+            Exchange USDT for GameTokens at 1:1 ratio
+          </p>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">USDT Amount</label>
+              <div class="relative">
+                <input
+                  type="number"
+                  id="usdtAmount"
+                  placeholder="0.00"
+                  class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500"
+                />
+                <span class="absolute right-3 top-3 text-gray-400">USDT</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-2"
+                >You'll Receive</label
+              >
+              <div class="relative">
+                <input
+                  type="number"
+                  id="gtReceive"
+                  placeholder="0.00"
+                  readonly
+                  class="w-full bg-gray-600 border border-gray-600 rounded-lg px-4 py-3 text-gray-300"
+                />
+                <span class="absolute right-3 top-3 text-gray-400">GT</span>
+              </div>
+            </div>
+
+            <div class="flex space-x-2">
+              <button
+                id="approveUSDT"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded-lg transition-colors"
+              >
+                1. Approve USDT
+              </button>
+              <button
+                id="purchaseGT"
+                class="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg transition-colors"
+                disabled
+              >
+                2. Purchase GT
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Match Creation Section -->
+        <div class="bg-gray-800 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4 flex items-center">
+            <i class="fas fa-trophy mr-2 text-orange-400"></i>
+            Create PvP Match
+          </h2>
+          <p class="text-gray-400 mb-4">
+            Stake GT tokens and challenge other players
+          </p>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">Stake Amount</label>
+              <div class="relative">
+                <input
+                  type="number"
+                  id="stakeAmount"
+                  placeholder="0.00"
+                  class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500"
+                />
+                <span class="absolute right-3 top-3 text-gray-400">GT</span>
+              </div>
+            </div>
+
+            <div class="bg-gray-700 rounded-lg p-3">
+              <div class="text-sm text-gray-400">Platform Fee: 5%</div>
+              <div class="text-sm text-gray-400">
+                Winner receives: 95% of total pot
+              </div>
+            </div>
+
+            <div class="flex space-x-2">
+              <button
+                id="approveGT"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded-lg transition-colors"
+              >
+                1. Approve GT
+              </button>
+              <button
+                id="createMatch"
+                class="flex-1 bg-purple-600 hover:bg-purple-700 py-3 rounded-lg transition-colors"
+                disabled
+              >
+                2. Create Match
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Matches Section -->
+      <div class="mt-8 bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <i class="fas fa-list mr-2 text-blue-400"></i>
+          Available Matches
+        </h2>
+        <div id="matchesList" class="space-y-3">
+          <div class="text-gray-400 text-center py-8">
+            <i class="fas fa-search text-4xl mb-4"></i>
+            <p>No matches available. Create one to get started!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction History -->
+      <div class="mt-8 bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <i class="fas fa-history mr-2 text-gray-400"></i>
+          Recent Transactions
+        </h2>
+        <div id="transactionHistory" class="space-y-2">
+          <div class="text-gray-400 text-center py-4">No transactions yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div
+      id="statusMessage"
+      class="hidden fixed bottom-4 right-4 max-w-sm bg-purple-600 text-white p-4 rounded-lg shadow-lg"
+    >
+      <div class="flex items-center">
+        <i class="fas fa-info-circle mr-2"></i>
+        <span id="statusText">Status message</span>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div
+      id="loadingOverlay"
+      class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    >
+      <div class="bg-gray-800 rounded-lg p-6 flex items-center space-x-3">
+        <i class="fas fa-spinner fa-spin text-xl text-purple-400"></i>
+        <span>Processing transaction...</span>
+      </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/contracts.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
