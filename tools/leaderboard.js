@@ -26,14 +26,14 @@ const ABIS = {
         "event Transfer(address indexed,address indexed,uint256)"
     ],
     TokenStore: [
-        "event TokensPurchased(address indexed,uint256,uint256,uint256)"
+        "event Purchase(address indexed,uint256,uint256)"
     ],
     PlayGame: [
-        "event MatchCreated(uint256 indexed,address indexed,uint256)",
-        "event PlayerJoined(uint256 indexed,address indexed)",
-        "event MatchCompleted(uint256 indexed,address indexed,uint256)",
-        "event MatchCancelled(uint256 indexed,address indexed,address indexed)",
-        "function getMatch(uint256) view returns (tuple(uint256,address,address,uint256,uint256,uint8,uint256,uint256,address))"
+        "event MatchCreated(bytes32 indexed,address indexed,address indexed,uint256)",
+        "event Staked(bytes32 indexed,address indexed,uint256)",
+        "event Settled(bytes32 indexed,address indexed,uint256)",
+        "event Refunded(bytes32 indexed,address indexed,uint256)",
+        "function getMatch(bytes32) view returns (tuple(bytes32,address,address,uint256,uint8,uint256,bool,bool))"
     ]
 };
 
@@ -84,13 +84,13 @@ async function initialize() {
 // Start listening to blockchain events
 function startEventListeners() {
     // Listen to TokenStore purchase events
-    contracts.tokenStore.on('TokensPurchased', (buyer, usdtAmount, gtAmount, timestamp) => {
+    contracts.tokenStore.on('Purchase', (buyer, usdtAmount, gtOut) => {
         const event = {
             type: 'Purchase',
             buyer,
             usdtAmount: ethers.formatUnits(usdtAmount, 6),
-            gtAmount: ethers.formatEther(gtAmount),
-            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+            gtAmount: ethers.formatEther(gtOut),
+            timestamp: new Date().toISOString(),
             txHash: 'pending' // Would be filled in real implementation
         };
 
@@ -101,11 +101,12 @@ function startEventListeners() {
     });
 
     // Listen to PlayGame match creation events
-    contracts.playGame.on('MatchCreated', (matchId, player1, stakeAmount) => {
+    contracts.playGame.on('MatchCreated', (matchId, player1, player2, stakeAmount) => {
         const event = {
             type: 'MatchCreated',
-            matchId: matchId.toString(),
+            matchId: matchId,
             player1,
+            player2,
             stakeAmount: ethers.formatEther(stakeAmount),
             timestamp: new Date().toISOString(),
             txHash: 'pending'
@@ -113,28 +114,30 @@ function startEventListeners() {
 
         events.unshift(event);
         initializePlayerStats(player1);
+        initializePlayerStats(player2);
 
         console.log('🎮 Match Created:', event);
     });
 
     // Listen to PlayGame staking events
-    contracts.playGame.on('PlayerJoined', (matchId, player2) => {
+    contracts.playGame.on('Staked', (matchId, player, amount) => {
         const event = {
             type: 'Staked',
-            matchId: matchId.toString(),
-            player2,
+            matchId: matchId,
+            player,
+            amount: ethers.formatEther(amount),
             timestamp: new Date().toISOString(),
             txHash: 'pending'
         };
 
         events.unshift(event);
-        initializePlayerStats(player2);
+        initializePlayerStats(player);
 
-        console.log('🚀 Player Joined:', event);
+        console.log('💰 Staked:', event);
     });
 
     // Listen to PlayGame settlement events
-    contracts.playGame.on('MatchCompleted', async (matchId, winner, payout) => {
+    contracts.playGame.on('Settled', async (matchId, winner, payout) => {
         try {
             // Get match details to find the loser
             const match = await contracts.playGame.getMatch(matchId);
@@ -176,6 +179,22 @@ function startEventListeners() {
         events.unshift(event);
 
         console.log('❌ Match Cancelled:', event);
+    });
+
+    // Listen to refund events
+    contracts.playGame.on('Refunded', (matchId, player, amount) => {
+        const event = {
+            type: 'Refunded',
+            matchId: matchId,
+            player,
+            amount: ethers.formatEther(amount),
+            timestamp: new Date().toISOString(),
+            txHash: 'pending'
+        };
+
+        events.unshift(event);
+
+        console.log('💸 Refunded:', event);
     });
 
     // Keep only last 1000 events in memory

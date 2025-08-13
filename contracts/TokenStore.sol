@@ -22,28 +22,17 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
 
     GameToken public immutable gameToken;
     IUSDT public immutable usdtToken;
+    uint256 public immutable gtPerUsdt;
 
-    uint256 public constant CONVERSION_RATE = 1; // 1:1 USDT to GT
     uint256 public constant USDT_DECIMALS = 6;
     uint256 public constant GT_DECIMALS = 18;
     uint256 public constant DECIMAL_ADJUSTMENT =
         10 ** (GT_DECIMALS - USDT_DECIMALS);
 
-    address public treasuryAddress;
     uint256 public totalPurchases;
     uint256 public totalUSDTReceived;
 
-    event TokensPurchased(
-        address indexed buyer,
-        uint256 usdtAmount,
-        uint256 gtAmount,
-        uint256 timestamp
-    );
-
-    event TreasuryUpdated(
-        address indexed oldTreasury,
-        address indexed newTreasury
-    );
+    event Purchase(address indexed buyer, uint256 usdtAmount, uint256 gtOut);
     event EmergencyWithdraw(
         address indexed token,
         address indexed to,
@@ -52,28 +41,21 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
 
     /**
      * @dev Constructor sets up the contract with GameToken and USDT addresses
+     * @param _usdt Address of the USDT token contract
      * @param _gameToken Address of the GameToken contract
-     * @param _usdtToken Address of the USDT token contract
-     * @param _treasuryAddress Address to receive USDT payments
+     * @param _gtPerUsdt GT tokens per USDT (e.g., 1e18 for 1:1 conversion)
      */
-    constructor(
-        address _gameToken,
-        address _usdtToken,
-        address _treasuryAddress
-    ) {
+    constructor(address _usdt, address _gameToken, uint256 _gtPerUsdt) {
+        require(_usdt != address(0), "TokenStore: invalid USDT address");
         require(
             _gameToken != address(0),
             "TokenStore: invalid game token address"
         );
-        require(_usdtToken != address(0), "TokenStore: invalid USDT address");
-        require(
-            _treasuryAddress != address(0),
-            "TokenStore: invalid treasury address"
-        );
+        require(_gtPerUsdt > 0, "TokenStore: gtPerUsdt must be greater than 0");
 
+        usdtToken = IUSDT(_usdt);
         gameToken = GameToken(_gameToken);
-        usdtToken = IUSDT(_usdtToken);
-        treasuryAddress = _treasuryAddress;
+        gtPerUsdt = _gtPerUsdt;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(OPERATOR_ROLE, msg.sender);
@@ -81,12 +63,10 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @dev Purchase GT tokens with USDT
-     * @param usdtAmount Amount of USDT to spend
+     * @dev Buy GT tokens with USDT (1:1 conversion rate)
+     * @param usdtAmount Amount of USDT to spend (6 decimals)
      */
-    function purchaseTokens(
-        uint256 usdtAmount
-    ) external whenNotPaused nonReentrant {
+    function buy(uint256 usdtAmount) external whenNotPaused nonReentrant {
         require(usdtAmount > 0, "TokenStore: amount must be greater than 0");
         require(
             usdtAmount <= usdtToken.balanceOf(msg.sender),
@@ -97,64 +77,23 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
             "TokenStore: insufficient USDT allowance"
         );
 
-        // Calculate GT amount (1:1 conversion with decimal adjustment)
-        uint256 gtAmount = usdtAmount * DECIMAL_ADJUSTMENT;
-
-        // Transfer USDT from buyer to treasury
+        // Pull USDT (6 decimals) with transferFrom
         require(
-            usdtToken.transferFrom(msg.sender, treasuryAddress, usdtAmount),
+            usdtToken.transferFrom(msg.sender, address(this), usdtAmount),
             "TokenStore: USDT transfer failed"
         );
 
+        // Calculate GT amount: usdtAmount * gtPerUsdt / 1e6
+        uint256 gtOut = (usdtAmount * gtPerUsdt) / (10 ** USDT_DECIMALS);
+
         // Mint GT tokens to buyer
-        gameToken.mint(msg.sender, gtAmount);
+        gameToken.mint(msg.sender, gtOut);
 
         // Update statistics
         totalPurchases++;
         totalUSDTReceived += usdtAmount;
 
-        emit TokensPurchased(msg.sender, usdtAmount, gtAmount, block.timestamp);
-    }
-
-    /**
-     * @dev Purchase GT tokens with USDT using permit (gasless approval)
-     * @param usdtAmount Amount of USDT to spend
-     * @param deadline Deadline for the permit
-     * @param v Signature parameter v
-     * @param r Signature parameter r
-     * @param s Signature parameter s
-     */
-    function purchaseTokensWithPermit(
-        uint256 usdtAmount,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external whenNotPaused nonReentrant {
-        require(usdtAmount > 0, "TokenStore: amount must be greater than 0");
-        require(deadline >= block.timestamp, "TokenStore: permit expired");
-
-        // Note: This function assumes USDT supports permit.
-        // Most USDT implementations don't support permit, so this is included for completeness
-        // but may not work with actual USDT contracts
-
-        // Calculate GT amount
-        uint256 gtAmount = usdtAmount * DECIMAL_ADJUSTMENT;
-
-        // Transfer USDT from buyer to treasury
-        require(
-            usdtToken.transferFrom(msg.sender, treasuryAddress, usdtAmount),
-            "TokenStore: USDT transfer failed"
-        );
-
-        // Mint GT tokens to buyer
-        gameToken.mint(msg.sender, gtAmount);
-
-        // Update statistics
-        totalPurchases++;
-        totalUSDTReceived += usdtAmount;
-
-        emit TokensPurchased(msg.sender, usdtAmount, gtAmount, block.timestamp);
+        emit Purchase(msg.sender, usdtAmount, gtOut);
     }
 
     /**
@@ -164,8 +103,8 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
      */
     function getGTAmount(
         uint256 usdtAmount
-    ) external pure returns (uint256 gtAmount) {
-        return usdtAmount * DECIMAL_ADJUSTMENT;
+    ) external view returns (uint256 gtAmount) {
+        return (usdtAmount * gtPerUsdt) / (10 ** USDT_DECIMALS);
     }
 
     /**
@@ -175,24 +114,33 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
      */
     function getUSDTAmount(
         uint256 gtAmount
-    ) external pure returns (uint256 usdtAmount) {
-        return gtAmount / DECIMAL_ADJUSTMENT;
+    ) external view returns (uint256 usdtAmount) {
+        return (gtAmount * (10 ** USDT_DECIMALS)) / gtPerUsdt;
     }
 
     /**
-     * @dev Update treasury address. Only callable by admin
-     * @param newTreasury New treasury address
+     * @dev Withdraw USDT from contract (owner only)
+     * @param to Address to send USDT to
+     * @param amount Amount of USDT to withdraw
      */
-    function updateTreasury(
-        address newTreasury
+    function withdrawUSDT(
+        address to,
+        uint256 amount
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(
-            newTreasury != address(0),
-            "TokenStore: invalid treasury address"
+            to != address(0),
+            "TokenStore: cannot withdraw to zero address"
         );
-        address oldTreasury = treasuryAddress;
-        treasuryAddress = newTreasury;
-        emit TreasuryUpdated(oldTreasury, newTreasury);
+        require(amount > 0, "TokenStore: amount must be greater than 0");
+        require(
+            amount <= usdtToken.balanceOf(address(this)),
+            "TokenStore: insufficient USDT balance"
+        );
+
+        require(
+            usdtToken.transfer(to, amount),
+            "TokenStore: USDT transfer failed"
+        );
     }
 
     /**
@@ -257,7 +205,7 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
      * @dev Get contract statistics
      * @return _totalPurchases Total number of purchases
      * @return _totalUSDTReceived Total USDT received
-     * @return _treasuryAddress Current treasury address
+     * @return _gtPerUsdt Current conversion rate
      */
     function getStats()
         external
@@ -265,10 +213,10 @@ contract TokenStore is AccessControl, Pausable, ReentrancyGuard {
         returns (
             uint256 _totalPurchases,
             uint256 _totalUSDTReceived,
-            address _treasuryAddress
+            uint256 _gtPerUsdt
         )
     {
-        return (totalPurchases, totalUSDTReceived, treasuryAddress);
+        return (totalPurchases, totalUSDTReceived, gtPerUsdt);
     }
 
     /**
