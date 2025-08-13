@@ -27,23 +27,23 @@ async function initializeBlockchain() {
         // Connect to network
         const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:8545';
         provider = new ethers.JsonRpcProvider(rpcUrl);
-        
+
         // Initialize wallet
         const privateKey = process.env.PRIVATE_KEY;
         if (!privateKey) {
             throw new Error('PRIVATE_KEY not found in environment variables');
         }
         wallet = new ethers.Wallet(privateKey, provider);
-        
+
         console.log('🔗 Connected to blockchain');
         console.log('📍 Wallet address:', wallet.address);
-        
+
         // Load ABIs
         await loadABIs();
-        
+
         // Initialize contracts
         await initializeContracts();
-        
+
         console.log('✅ Blockchain initialization complete');
         return true;
     } catch (error) {
@@ -56,12 +56,12 @@ async function initializeBlockchain() {
 async function loadABIs() {
     try {
         const abiPath = path.join(__dirname, 'abis');
-        
+
         // Create ABIs directory if it doesn't exist
         if (!fs.existsSync(abiPath)) {
             fs.mkdirSync(abiPath, { recursive: true });
         }
-        
+
         // Basic ERC20 ABI for tokens
         ABIS.ERC20 = [
             "function balanceOf(address) view returns (uint256)",
@@ -72,7 +72,7 @@ async function loadABIs() {
             "function mint(address,uint256) external",
             "event Transfer(address indexed,address indexed,uint256)"
         ];
-        
+
         // TokenStore ABI
         ABIS.TokenStore = [
             "function purchaseTokens(uint256) external",
@@ -83,7 +83,7 @@ async function loadABIs() {
             "function getStats() view returns (uint256,uint256,address)",
             "event TokensPurchased(address indexed,uint256,uint256,uint256)"
         ];
-        
+
         // PlayGame ABI
         ABIS.PlayGame = [
             "function createMatch(uint256) returns (uint256)",
@@ -100,7 +100,7 @@ async function loadABIs() {
             "event MatchCompleted(uint256 indexed,address indexed,uint256)",
             "event MatchCancelled(uint256 indexed,address indexed,address indexed)"
         ];
-        
+
         console.log('📝 ABIs loaded successfully');
     } catch (error) {
         console.error('❌ Failed to load ABIs:', error.message);
@@ -116,25 +116,25 @@ async function initializeContracts() {
             ABIS.ERC20,
             wallet
         );
-        
+
         contracts.tokenStore = new ethers.Contract(
             process.env.TOKENSTORE_ADDR,
             ABIS.TokenStore,
             wallet
         );
-        
+
         contracts.playGame = new ethers.Contract(
             process.env.PLAYGAME_ADDR,
             ABIS.PlayGame,
             wallet
         );
-        
+
         contracts.mockUsdt = new ethers.Contract(
             process.env.MOCKUSDT_ADDR,
             ABIS.ERC20,
             wallet
         );
-        
+
         console.log('🎮 Contracts initialized');
     } catch (error) {
         console.error('❌ Contract initialization failed:', error.message);
@@ -150,10 +150,10 @@ app.get('/health', (req, res) => {
         status: 'ok',
         timestamp: new Date().toISOString(),
         contracts: {
-            gameToken: process.env.GAMETOKEN_ADDR,
-            tokenStore: process.env.TOKENSTORE_ADDR,
-            playGame: process.env.PLAYGAME_ADDR,
-            mockUsdt: process.env.MOCKUSDT_ADDR
+            GAME_TOKEN: process.env.GAMETOKEN_ADDR,
+            TOKEN_STORE: process.env.TOKENSTORE_ADDR,
+            PLAY_GAME: process.env.PLAYGAME_ADDR,
+            MOCK_USDT: process.env.MOCKUSDT_ADDR
         }
     });
 });
@@ -195,10 +195,10 @@ app.get('/purchase', async (req, res) => {
         if (!amount) {
             return res.status(400).json({ error: 'Amount parameter required' });
         }
-        
+
         const usdtAmount = ethers.parseUnits(amount, 6);
         const gtAmount = await contracts.tokenStore.getGTAmount(usdtAmount);
-        
+
         res.json({
             usdtAmount: amount,
             gtAmount: ethers.formatEther(gtAmount),
@@ -213,15 +213,15 @@ app.get('/purchase', async (req, res) => {
 app.post('/faucet/usdt', async (req, res) => {
     try {
         const { address, amount = '1000' } = req.body;
-        
+
         if (!address) {
             return res.status(400).json({ error: 'Address required' });
         }
-        
+
         const mintAmount = ethers.parseUnits(amount, 6);
         const tx = await contracts.mockUsdt.mint(address, mintAmount);
         await tx.wait();
-        
+
         res.json({
             success: true,
             txHash: tx.hash,
@@ -237,10 +237,10 @@ app.post('/faucet/usdt', async (req, res) => {
 app.post('/match/start', async (req, res) => {
     try {
         const { matchId, p1, p2, stake } = req.body;
-        
+
         // This is called by the frontend after createMatch transaction
         // We can use this to track match creation events
-        
+
         res.json({
             success: true,
             matchId,
@@ -256,7 +256,7 @@ app.post('/match/start', async (req, res) => {
 app.post('/match/stake', async (req, res) => {
     try {
         const { matchId, player } = req.body;
-        
+
         // This endpoint can be used to track staking events
         res.json({
             success: true,
@@ -272,15 +272,15 @@ app.post('/match/stake', async (req, res) => {
 app.post('/match/result', async (req, res) => {
     try {
         const { matchId, winner } = req.body;
-        
+
         if (!matchId || !winner) {
             return res.status(400).json({ error: 'matchId and winner required' });
         }
-        
+
         // Call completeMatch on the smart contract
         const tx = await contracts.playGame.completeMatch(matchId, winner);
         await tx.wait();
-        
+
         res.json({
             success: true,
             txHash: tx.hash,
@@ -297,7 +297,7 @@ app.get('/match/:matchId', async (req, res) => {
     try {
         const { matchId } = req.params;
         const match = await contracts.playGame.getMatch(matchId);
-        
+
         res.json({
             matchId: match[0].toString(),
             player1: match[1],
@@ -318,14 +318,14 @@ app.get('/match/:matchId', async (req, res) => {
 app.post('/match/refund', async (req, res) => {
     try {
         const { matchId } = req.body;
-        
+
         if (!matchId) {
             return res.status(400).json({ error: 'matchId required' });
         }
-        
+
         const tx = await contracts.playGame.cancelMatch(matchId);
         await tx.wait();
-        
+
         res.json({
             success: true,
             txHash: tx.hash,
@@ -341,7 +341,7 @@ app.get('/matches/pending', async (req, res) => {
     try {
         const limit = req.query.limit || 10;
         const matchIds = await contracts.playGame.getPendingMatches(limit);
-        
+
         const matches = [];
         for (let id of matchIds) {
             const match = await contracts.playGame.getMatch(id);
@@ -355,7 +355,7 @@ app.get('/matches/pending', async (req, res) => {
                 createdAt: new Date(Number(match[6]) * 1000).toISOString()
             });
         }
-        
+
         res.json({ matches });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -367,7 +367,7 @@ app.get('/player/:address/matches', async (req, res) => {
     try {
         const { address } = req.params;
         const matchIds = await contracts.playGame.getPlayerMatches(address);
-        
+
         const matches = [];
         for (let id of matchIds) {
             const match = await contracts.playGame.getMatch(id);
@@ -383,7 +383,7 @@ app.get('/player/:address/matches', async (req, res) => {
                 winner: match[8]
             });
         }
-        
+
         res.json({ matches });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -395,7 +395,7 @@ app.get('/stats', async (req, res) => {
     try {
         const [totalMatches, totalStaked, totalPayouts, platformFee] = await contracts.playGame.getStats();
         const [totalPurchases, totalUSDTReceived, treasury] = await contracts.tokenStore.getStats();
-        
+
         res.json({
             matches: {
                 total: totalMatches.toString(),
@@ -423,13 +423,13 @@ app.get('/', (req, res) => {
 async function startServer() {
     try {
         console.log('🚀 Starting TriX API Server...');
-        
+
         // Initialize blockchain connection
         const blockchainReady = await initializeBlockchain();
         if (!blockchainReady) {
             console.log('⚠️  Starting server without blockchain connection');
         }
-        
+
         app.listen(PORT, () => {
             console.log(`🌐 API Server running on http://localhost:${PORT}`);
             console.log(`📊 Health check: http://localhost:${PORT}/health`);

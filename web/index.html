@@ -1,877 +1,1064 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>🎮 TriX Game Platform</title>
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <script src="./ethers-6.7.1.umd.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d1b69 100%);
-            color: white;
-            min-height: 100vh;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d1b69 100%);
+        color: white;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+      }
+
+      .header h1 {
+        font-size: 3rem;
+        margin-bottom: 10px;
+        background: linear-gradient(45deg, #6366f1, #a855f7);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .header p {
+        font-size: 1.2rem;
+        opacity: 0.8;
+      }
+
+      .card {
+        background: rgba(42, 42, 42, 0.8);
+        backdrop-filter: blur(10px);
+        padding: 30px;
+        margin: 20px 0;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      .wallet-section {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .connect-btn {
+        background: linear-gradient(45deg, #6366f1, #8b5cf6);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: 1.1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      }
+
+      .connect-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+      }
+
+      .connect-btn:disabled {
+        background: #666;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .wallet-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+      }
+
+      .balance-card {
+        background: rgba(55, 65, 81, 0.5);
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .balance-label {
+        font-size: 0.9rem;
+        opacity: 0.7;
+        margin-bottom: 5px;
+      }
+
+      .balance-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+
+      .input-group {
+        margin-bottom: 20px;
+      }
+
+      .input-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      .input-group input {
+        width: 100%;
+        background: rgba(55, 65, 81, 0.5);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.3s ease;
+      }
+
+      .input-group input:focus {
+        outline: none;
+        border-color: #6366f1;
+      }
+
+      .btn {
+        background: linear-gradient(45deg, #10b981, #059669);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin: 5px 0;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn:disabled {
+        background: #6b7280;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn.secondary {
+        background: linear-gradient(45deg, #6366f1, #8b5cf6);
+      }
+
+      .btn.faucet {
+        background: linear-gradient(45deg, #f59e0b, #d97706);
+      }
+
+      .btn.small {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+        width: auto;
+      }
+
+      .tabs {
+        display: flex;
+        margin-bottom: 20px;
+        background: rgba(55, 65, 81, 0.3);
+        border-radius: 10px;
+        padding: 5px;
+      }
+
+      .tab {
+        flex: 1;
+        background: transparent;
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .tab.active {
+        background: linear-gradient(45deg, #6366f1, #8b5cf6);
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .match-list,
+      .event-log {
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .match-item,
+      .event-item {
+        background: rgba(55, 65, 81, 0.3);
+        padding: 20px;
+        margin: 10px 0;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: background 0.3s ease;
+      }
+
+      .match-item:hover,
+      .event-item:hover {
+        background: rgba(55, 65, 81, 0.5);
+      }
+
+      .leaderboard-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(55, 65, 81, 0.3);
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .rank {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #f59e0b;
+        margin-right: 15px;
+      }
+
+      .player-info {
+        flex: 1;
+      }
+
+      .player-address {
+        font-family: monospace;
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+
+      .stats {
+        text-align: right;
+      }
+
+      .stat-value {
+        font-weight: bold;
+        color: #10b981;
+      }
+
+      .status {
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: 500;
+        animation: slideIn 0.3s ease;
+      }
+
+      .status.success {
+        background: rgba(16, 185, 129, 0.2);
+        border: 1px solid #10b981;
+      }
+
+      .status.error {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid #ef4444;
+      }
+
+      .status.warning {
+        background: rgba(245, 158, 11, 0.2);
+        border: 1px solid #f59e0b;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #666;
+        border-top: 2px solid #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      .match-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+      }
+
+      .winner-input {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 10px;
+      }
+
+      .winner-input select {
+        background: rgba(55, 65, 81, 0.5);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
         }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+        100% {
+          transform: rotate(360deg);
         }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
         }
-        
-        .header h1 {
-            font-size: 3rem;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #6366f1, #a855f7);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        to {
+          opacity: 1;
+          transform: translateY(0);
         }
-        
-        .header p {
-            font-size: 1.2rem;
-            opacity: 0.8;
-        }
-        
-        .card {
-            background: rgba(42, 42, 42, 0.8);
-            backdrop-filter: blur(10px);
-            padding: 30px;
-            margin: 20px 0;
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
-        .wallet-section {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .connect-btn {
-            background: linear-gradient(45deg, #6366f1, #8b5cf6);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 1.1rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-        }
-        
-        .connect-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
-        }
-        
-        .connect-btn:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .wallet-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        
-        .balance-card {
-            background: rgba(55, 65, 81, 0.5);
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .balance-label {
-            font-size: 0.9rem;
-            opacity: 0.7;
-            margin-bottom: 5px;
-        }
-        
-        .balance-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-        
+      }
+
+      @media (max-width: 768px) {
         .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 30px;
-            margin-bottom: 30px;
+          grid-template-columns: 1fr;
         }
-        
-        .input-group {
-            margin-bottom: 20px;
+        .header h1 {
+          font-size: 2rem;
         }
-        
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
+        .container {
+          padding: 15px;
         }
-        
-        .input-group input {
-            width: 100%;
-            background: rgba(55, 65, 81, 0.5);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-        }
-        
-        .input-group input:focus {
-            outline: none;
-            border-color: #6366f1;
-        }
-        
-        .btn {
-            background: linear-gradient(45deg, #10b981, #059669);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin: 5px 0;
-        }
-        
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-        
-        .btn:disabled {
-            background: #6b7280;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .btn.secondary {
-            background: linear-gradient(45deg, #6366f1, #8b5cf6);
-        }
-        
-        .btn.faucet {
-            background: linear-gradient(45deg, #f59e0b, #d97706);
-        }
-        
-        .btn.small {
-            padding: 8px 16px;
-            font-size: 0.9rem;
-            width: auto;
-        }
-        
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            background: rgba(55, 65, 81, 0.3);
-            border-radius: 10px;
-            padding: 5px;
-        }
-        
-        .tab {
-            flex: 1;
-            background: transparent;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .tab.active {
-            background: linear-gradient(45deg, #6366f1, #8b5cf6);
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        .match-list, .event-log {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .match-item, .event-item {
-            background: rgba(55, 65, 81, 0.3);
-            padding: 20px;
-            margin: 10px 0;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: background 0.3s ease;
-        }
-        
-        .match-item:hover, .event-item:hover {
-            background: rgba(55, 65, 81, 0.5);
-        }
-        
-        .leaderboard-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(55, 65, 81, 0.3);
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .rank {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #f59e0b;
-            margin-right: 15px;
-        }
-        
-        .player-info {
-            flex: 1;
-        }
-        
-        .player-address {
-            font-family: monospace;
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-        
-        .stats {
-            text-align: right;
-        }
-        
-        .stat-value {
-            font-weight: bold;
-            color: #10b981;
-        }
-        
-        .status {
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 10px;
-            text-align: center;
-            font-weight: 500;
-            animation: slideIn 0.3s ease;
-        }
-        
-        .status.success {
-            background: rgba(16, 185, 129, 0.2);
-            border: 1px solid #10b981;
-        }
-        
-        .status.error {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid #ef4444;
-        }
-        
-        .status.warning {
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid #f59e0b;
-        }
-        
-        .hidden {
-            display: none;
-        }
-        
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-        
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid #666;
-            border-top: 2px solid #6366f1;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        .match-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .winner-input {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-top: 10px;
-        }
-        
-        .winner-input select {
-            background: rgba(55, 65, 81, 0.5);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-            .header h1 {
-                font-size: 2rem;
-            }
-            .container {
-                padding: 15px;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="header">
-            <h1>🎮 TriX Gaming</h1>
-            <p>Complete blockchain gaming platform with real-time leaderboard</p>
+      <div class="header">
+        <h1>🎮 TriX Gaming</h1>
+        <p>Complete blockchain gaming platform with real-time leaderboard</p>
+      </div>
+
+      <div class="wallet-section">
+        <button id="connectBtn" class="connect-btn">
+          Connect MetaMask Wallet
+        </button>
+        <div id="walletInfo" class="wallet-info hidden">
+          <div class="balance-card">
+            <div class="balance-label">Wallet Address</div>
+            <div
+              id="address"
+              class="balance-value"
+              style="font-size: 1rem"
+            ></div>
+          </div>
+          <div class="balance-card">
+            <div class="balance-label">ETH Balance</div>
+            <div id="ethBalance" class="balance-value">0.0000</div>
+          </div>
+          <div class="balance-card">
+            <div class="balance-label">GT Balance</div>
+            <div id="gtBalance" class="balance-value">0.00</div>
+          </div>
+          <div class="balance-card">
+            <div class="balance-label">USDT Balance</div>
+            <div id="usdtBalance" class="balance-value">0.00</div>
+          </div>
         </div>
+      </div>
 
-        <div class="wallet-section">
-            <button id="connectBtn" class="connect-btn">Connect MetaMask Wallet</button>
-            <div id="walletInfo" class="wallet-info hidden">
-                <div class="balance-card">
-                    <div class="balance-label">Wallet Address</div>
-                    <div id="address" class="balance-value" style="font-size: 1rem"></div>
-                </div>
-                <div class="balance-card">
-                    <div class="balance-label">ETH Balance</div>
-                    <div id="ethBalance" class="balance-value">0.0000</div>
-                </div>
-                <div class="balance-card">
-                    <div class="balance-label">GT Balance</div>
-                    <div id="gtBalance" class="balance-value">0.00</div>
-                </div>
-                <div class="balance-card">
-                    <div class="balance-label">USDT Balance</div>
-                    <div id="usdtBalance" class="balance-value">0.00</div>
-                </div>
-            </div>
-        </div>
+      <div class="grid">
+        <div class="card">
+          <h2>💰 Buy GameTokens (GT)</h2>
+          <p style="opacity: 0.8; margin-bottom: 20px">
+            Exchange USDT for GameTokens at 1:1 ratio
+          </p>
 
-        <div class="grid">
-            <div class="card">
-                <h2>💰 Buy GameTokens (GT)</h2>
-                <p style="opacity: 0.8; margin-bottom: 20px">Exchange USDT for GameTokens at 1:1 ratio</p>
-                
-                <button id="faucetBtn" class="btn faucet" style="margin-bottom: 20px;">
-                    🚰 Get Test USDT (1000 USDT)
-                </button>
-                
-                <div class="input-group">
-                    <label>USDT Amount</label>
-                    <input type="number" id="usdtAmount" placeholder="Enter USDT amount" min="0" step="0.01" />
-                </div>
-                <div class="input-group">
-                    <label>You'll Receive</label>
-                    <input type="number" id="gtReceive" placeholder="GT amount" readonly style="opacity: 0.7" />
-                </div>
-                <button id="buyBtn" class="btn" disabled>Purchase GameTokens</button>
-            </div>
+          <button id="faucetBtn" class="btn faucet" style="margin-bottom: 20px">
+            🚰 Get Test USDT (1000 USDT)
+          </button>
 
-            <div class="card">
-                <h2>🏆 Create PvP Match</h2>
-                <p style="opacity: 0.8; margin-bottom: 20px">Stake GT tokens and challenge other players</p>
-                
-                <div class="input-group">
-                    <label>Stake Amount (GT)</label>
-                    <input type="number" id="stakeAmount" placeholder="Enter GT stake" min="0" step="0.01" />
-                </div>
-                <div style="background: rgba(99, 102, 241, 0.1); padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid rgba(99, 102, 241, 0.3);">
-                    <p style="font-size: 0.9rem">💡 Platform Fee: 5%</p>
-                    <p style="font-size: 0.9rem">🏆 Winner receives: 95% of total pot</p>
-                </div>
-                <button id="createMatchBtn" class="btn secondary" disabled>Create Match</button>
-            </div>
+          <div class="input-group">
+            <label>USDT Amount</label>
+            <input
+              type="number"
+              id="usdtAmount"
+              placeholder="Enter USDT amount"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div class="input-group">
+            <label>You'll Receive</label>
+            <input
+              type="number"
+              id="gtReceive"
+              placeholder="GT amount"
+              readonly
+              style="opacity: 0.7"
+            />
+          </div>
+          <button id="buyBtn" class="btn" disabled>Purchase GameTokens</button>
         </div>
 
         <div class="card">
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('matches')">🎯 Available Matches</button>
-                <button class="tab" onclick="switchTab('leaderboard')">🏆 Leaderboard</button>
-                <button class="tab" onclick="switchTab('events')">📜 Event Log</button>
-            </div>
+          <h2>🏆 Create PvP Match</h2>
+          <p style="opacity: 0.8; margin-bottom: 20px">
+            Stake GT tokens and challenge other players
+          </p>
 
-            <div id="matchesTab" class="tab-content active">
-                <div id="matchesList" class="match-list">
-                    <div style="text-align: center; padding: 40px; opacity: 0.6">
-                        <p>🔌 Connect your wallet to see available matches</p>
-                    </div>
-                </div>
-            </div>
+          <div class="input-group">
+            <label>Stake Amount (GT)</label>
+            <input
+              type="number"
+              id="stakeAmount"
+              placeholder="Enter GT stake"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div
+            style="
+              background: rgba(99, 102, 241, 0.1);
+              padding: 15px;
+              border-radius: 8px;
+              margin: 15px 0;
+              border: 1px solid rgba(99, 102, 241, 0.3);
+            "
+          >
+            <p style="font-size: 0.9rem">💡 Platform Fee: 5%</p>
+            <p style="font-size: 0.9rem">
+              🏆 Winner receives: 95% of total pot
+            </p>
+          </div>
+          <button id="createMatchBtn" class="btn secondary" disabled>
+            Create Match
+          </button>
+        </div>
+      </div>
 
-            <div id="leaderboardTab" class="tab-content">
-                <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                    <button class="btn small" onclick="loadLeaderboard('gaming')">🎮 Gaming Leaders</button>
-                    <button class="btn small" onclick="loadLeaderboard('purchases')">💰 Top Purchasers</button>
-                    <button class="btn small" onclick="loadStats()">📊 Platform Stats</button>
-                </div>
-                <div id="leaderboardList">
-                    <div style="text-align: center; padding: 40px; opacity: 0.6">
-                        <p>📊 Select a leaderboard to view</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="eventsTab" class="tab-content">
-                <div style="margin-bottom: 20px;">
-                    <button class="btn small" onclick="loadEvents('all')">All Events</button>
-                    <button class="btn small" onclick="loadEvents('Purchase')">Purchases</button>
-                    <button class="btn small" onclick="loadEvents('MatchCreated')">Matches</button>
-                    <button class="btn small" onclick="loadEvents('Settled')">Settlements</button>
-                </div>
-                <div id="eventsList" class="event-log">
-                    <div style="text-align: center; padding: 40px; opacity: 0.6">
-                        <p>📜 Select event type to view</p>
-                    </div>
-                </div>
-            </div>
+      <div class="card">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('matches')">
+            🎯 Available Matches
+          </button>
+          <button class="tab" onclick="switchTab('leaderboard')">
+            🏆 Leaderboard
+          </button>
+          <button class="tab" onclick="switchTab('events')">
+            📜 Event Log
+          </button>
         </div>
 
-        <div id="status" class="status hidden"></div>
+        <div id="matchesTab" class="tab-content active">
+          <div id="matchesList" class="match-list">
+            <div style="text-align: center; padding: 40px; opacity: 0.6">
+              <p>🔌 Connect your wallet to see available matches</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="leaderboardTab" class="tab-content">
+          <div style="display: flex; gap: 20px; margin-bottom: 20px">
+            <button class="btn small" onclick="loadLeaderboard('gaming')">
+              🎮 Gaming Leaders
+            </button>
+            <button class="btn small" onclick="loadLeaderboard('purchases')">
+              💰 Top Purchasers
+            </button>
+            <button class="btn small" onclick="loadStats()">
+              📊 Platform Stats
+            </button>
+          </div>
+          <div id="leaderboardList">
+            <div style="text-align: center; padding: 40px; opacity: 0.6">
+              <p>📊 Select a leaderboard to view</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="eventsTab" class="tab-content">
+          <div style="margin-bottom: 20px">
+            <button class="btn small" onclick="loadEvents('all')">
+              All Events
+            </button>
+            <button class="btn small" onclick="loadEvents('Purchase')">
+              Purchases
+            </button>
+            <button class="btn small" onclick="loadEvents('MatchCreated')">
+              Matches
+            </button>
+            <button class="btn small" onclick="loadEvents('Settled')">
+              Settlements
+            </button>
+          </div>
+          <div id="eventsList" class="event-log">
+            <div style="text-align: center; padding: 40px; opacity: 0.6">
+              <p>📜 Select event type to view</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="status" class="status hidden"></div>
     </div>
 
     <script>
-        // Configuration
-        const CONFIG = {
-            API_URL: 'http://localhost:3000',
-            LEADERBOARD_URL: 'http://localhost:3001',
-            NETWORK: 'localhost',
-            CHAIN_ID: 31337,
-            CONTRACTS: {
-                GAME_TOKEN: '',
-                TOKEN_STORE: '',
-                PLAY_GAME: '',
-                MOCK_USDT: ''
-            }
-        };
+      // Configuration
+      const CONFIG = {
+        API_URL: "http://localhost:3000",
+        LEADERBOARD_URL: "http://localhost:3001",
+        NETWORK: "localhost",
+        CHAIN_ID: 31337,
+        CONTRACTS: {
+          GAME_TOKEN: "",
+          TOKEN_STORE: "",
+          PLAY_GAME: "",
+          MOCK_USDT: "",
+        },
+      };
 
-        // Contract ABIs
-        const ABIS = {
-            ERC20: [
-                "function balanceOf(address) view returns (uint256)",
-                "function approve(address,uint256) returns (bool)",
-                "function allowance(address,address) view returns (uint256)"
-            ],
-            TokenStore: [
-                "function purchaseTokens(uint256) external",
-                "function getGTAmount(uint256) view returns (uint256)"
-            ],
-            PlayGame: [
-                "function createMatch(uint256) returns (uint256)",
-                "function joinMatch(uint256) external",
-                "function getPendingMatches(uint256) view returns (uint256[])",
-                "function getMatch(uint256) view returns (tuple(uint256,address,address,uint256,uint256,uint8,uint256,uint256,address))"
-            ],
-            MockUSDT: [
-                "function faucet() external",
-                "function faucetCooldown(address) view returns (uint256)"
-            ]
-        };
+      // Contract ABIs
+      const ABIS = {
+        ERC20: [
+          "function balanceOf(address) view returns (uint256)",
+          "function approve(address,uint256) returns (bool)",
+          "function allowance(address,address) view returns (uint256)",
+        ],
+        TokenStore: [
+          "function purchaseTokens(uint256) external",
+          "function getGTAmount(uint256) view returns (uint256)",
+        ],
+        PlayGame: [
+          "function createMatch(uint256) returns (uint256)",
+          "function joinMatch(uint256) external",
+          "function getPendingMatches(uint256) view returns (uint256[])",
+          "function getMatch(uint256) view returns (tuple(uint256,address,address,uint256,uint256,uint8,uint256,uint256,address))",
+        ],
+        MockUSDT: [
+          "function faucet() external",
+          "function faucetCooldown(address) view returns (uint256)",
+        ],
+      };
 
-        let provider, signer, userAddress;
-        let contracts = {};
-        let currentTab = 'matches';
+      let provider, signer, userAddress;
+      let contracts = {};
+      let currentTab = "matches";
 
-        // DOM Elements
-        const connectBtn = document.getElementById('connectBtn');
-        const walletInfo = document.getElementById('walletInfo');
-        const address = document.getElementById('address');
-        const ethBalance = document.getElementById('ethBalance');
-        const gtBalance = document.getElementById('gtBalance');
-        const usdtBalance = document.getElementById('usdtBalance');
-        const usdtAmount = document.getElementById('usdtAmount');
-        const gtReceive = document.getElementById('gtReceive');
-        const buyBtn = document.getElementById('buyBtn');
-        const faucetBtn = document.getElementById('faucetBtn');
-        const stakeAmount = document.getElementById('stakeAmount');
-        const createMatchBtn = document.getElementById('createMatchBtn');
-        const matchesList = document.getElementById('matchesList');
-        const leaderboardList = document.getElementById('leaderboardList');
-        const eventsList = document.getElementById('eventsList');
-        const status = document.getElementById('status');
+      // DOM Elements
+      const connectBtn = document.getElementById("connectBtn");
+      const walletInfo = document.getElementById("walletInfo");
+      const address = document.getElementById("address");
+      const ethBalance = document.getElementById("ethBalance");
+      const gtBalance = document.getElementById("gtBalance");
+      const usdtBalance = document.getElementById("usdtBalance");
+      const usdtAmount = document.getElementById("usdtAmount");
+      const gtReceive = document.getElementById("gtReceive");
+      const buyBtn = document.getElementById("buyBtn");
+      const faucetBtn = document.getElementById("faucetBtn");
+      const stakeAmount = document.getElementById("stakeAmount");
+      const createMatchBtn = document.getElementById("createMatchBtn");
+      const matchesList = document.getElementById("matchesList");
+      const leaderboardList = document.getElementById("leaderboardList");
+      const eventsList = document.getElementById("eventsList");
+      const status = document.getElementById("status");
 
-        // Load configuration from API
-        async function loadConfig() {
-            try {
-                const response = await fetch(`${CONFIG.API_URL}/health`);
-                const data = await response.json();
-                CONFIG.CONTRACTS = data.contracts;
-                console.log('Configuration loaded:', CONFIG.CONTRACTS);
-            } catch (error) {
-                console.error('Failed to load configuration:', error);
-                showStatus('⚠️ Backend API not available. Please start the backend server.', 'warning');
-            }
+      // Load configuration from API
+      async function loadConfig() {
+        try {
+          const response = await fetch(`${CONFIG.API_URL}/health`);
+          const data = await response.json();
+          CONFIG.CONTRACTS = data.contracts;
+          console.log("Configuration loaded:", CONFIG.CONTRACTS);
+        } catch (error) {
+          console.error("Failed to load configuration:", error);
+          showStatus(
+            "⚠️ Backend API not available. Please start the backend server.",
+            "warning"
+          );
         }
+      }
 
-        // Auto-calculate GT receive amount
-        usdtAmount.addEventListener('input', () => {
-            const amount = parseFloat(usdtAmount.value) || 0;
-            gtReceive.value = amount.toFixed(6);
-        });
+      // Auto-calculate GT receive amount
+      usdtAmount.addEventListener("input", () => {
+        const amount = parseFloat(usdtAmount.value) || 0;
+        gtReceive.value = amount.toFixed(6);
+      });
 
-        // Tab switching
-        function switchTab(tabName) {
-            currentTab = tabName;
-            
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(tabName + 'Tab').classList.add('active');
-            
-            // Load content based on tab
-            if (tabName === 'matches' && userAddress) {
-                loadMatches();
-            } else if (tabName === 'leaderboard') {
-                loadLeaderboard('gaming');
-            } else if (tabName === 'events') {
-                loadEvents('all');
-            }
+      // Tab switching
+      function switchTab(tabName) {
+        currentTab = tabName;
+
+        // Update tab buttons
+        document
+          .querySelectorAll(".tab")
+          .forEach((tab) => tab.classList.remove("active"));
+        event.target.classList.add("active");
+
+        // Update tab content
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((content) => content.classList.remove("active"));
+        document.getElementById(tabName + "Tab").classList.add("active");
+
+        // Load content based on tab
+        if (tabName === "matches" && userAddress) {
+          loadMatches();
+        } else if (tabName === "leaderboard") {
+          loadLeaderboard("gaming");
+        } else if (tabName === "events") {
+          loadEvents("all");
         }
+      }
 
-        // Connect Wallet
-        connectBtn.onclick = async () => {
-            try {
-                if (!window.ethereum) {
-                    showStatus('❌ Please install MetaMask to use this application!', 'error');
-                    return;
-                }
+      // Connect Wallet
+      connectBtn.onclick = async () => {
+        try {
+          if (!window.ethereum) {
+            showStatus(
+              "❌ Please install MetaMask to use this application!",
+              "error"
+            );
+            return;
+          }
 
-                showStatus('🔗 Connecting to MetaMask...', 'warning');
+          showStatus("🔗 Connecting to MetaMask...", "warning");
 
-                // Load configuration first
-                await loadConfig();
+          // Load configuration first
+          await loadConfig();
 
-                const accounts = await window.ethereum.request({
-                    method: 'eth_requestAccounts'
-                });
-                provider = new ethers.providers.Web3Provider(window.ethereum);
-                signer = provider.getSigner();
-                userAddress = accounts[0];
+          const accounts = await window.ethereum.request({
+            method: "eth_requestAccounts",
+          });
+          provider = new ethers.BrowserProvider(window.ethereum);
+          signer = await provider.getSigner();
+          userAddress = accounts[0];
 
-                // Check network
-                const network = await provider.getNetwork();
-                console.log('Connected to network:', network);
+          // Check network
+          const network = await provider.getNetwork();
+          console.log("Connected to network:", network);
 
-                // Initialize contracts
-                if (CONFIG.CONTRACTS.GAME_TOKEN) {
-                    contracts.gameToken = new ethers.Contract(CONFIG.CONTRACTS.GAME_TOKEN, ABIS.ERC20, signer);
-                    contracts.tokenStore = new ethers.Contract(CONFIG.CONTRACTS.TOKEN_STORE, ABIS.TokenStore, signer);
-                    contracts.playGame = new ethers.Contract(CONFIG.CONTRACTS.PLAY_GAME, ABIS.PlayGame, signer);
-                    contracts.mockUsdt = new ethers.Contract(CONFIG.CONTRACTS.MOCK_USDT, ABIS.ERC20.concat(ABIS.MockUSDT), signer);
-                }
+          // Initialize contracts
+          if (CONFIG.CONTRACTS.GAME_TOKEN) {
+            contracts.gameToken = new ethers.Contract(
+              CONFIG.CONTRACTS.GAME_TOKEN,
+              ABIS.ERC20,
+              signer
+            );
+            contracts.tokenStore = new ethers.Contract(
+              CONFIG.CONTRACTS.TOKEN_STORE,
+              ABIS.TokenStore,
+              signer
+            );
+            contracts.playGame = new ethers.Contract(
+              CONFIG.CONTRACTS.PLAY_GAME,
+              ABIS.PlayGame,
+              signer
+            );
+            contracts.mockUsdt = new ethers.Contract(
+              CONFIG.CONTRACTS.MOCK_USDT,
+              ABIS.ERC20.concat(ABIS.MockUSDT),
+              signer
+            );
+          }
 
-                updateWalletDisplay();
-                await updateBalances();
-                await loadMatches();
+          updateWalletDisplay();
+          await updateBalances();
+          await loadMatches();
 
-                buyBtn.disabled = false;
-                createMatchBtn.disabled = false;
-                faucetBtn.disabled = false;
+          buyBtn.disabled = false;
+          createMatchBtn.disabled = false;
+          faucetBtn.disabled = false;
 
-                showStatus('✅ Wallet connected successfully!', 'success');
-            } catch (error) {
-                console.error(error);
-                showStatus('❌ Failed to connect: ' + error.message, 'error');
-            }
-        };
-
-        function updateWalletDisplay() {
-            address.textContent = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
-            walletInfo.classList.remove('hidden');
-            connectBtn.textContent = '✅ Connected';
-            connectBtn.disabled = true;
+          showStatus("✅ Wallet connected successfully!", "success");
+        } catch (error) {
+          console.error(error);
+          showStatus("❌ Failed to connect: " + error.message, "error");
         }
+      };
 
-        async function updateBalances() {
-            try {
-                const ethBal = await provider.getBalance(userAddress);
-                ethBalance.textContent = parseFloat(ethers.utils.formatEther(ethBal)).toFixed(4);
+      function updateWalletDisplay() {
+        address.textContent =
+          userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
+        walletInfo.classList.remove("hidden");
+        connectBtn.textContent = "✅ Connected";
+        connectBtn.disabled = true;
+      }
 
-                if (contracts.gameToken) {
-                    const gtBal = await contracts.gameToken.balanceOf(userAddress);
-                    gtBalance.textContent = parseFloat(ethers.utils.formatEther(gtBal)).toFixed(2);
-                }
+      async function updateBalances() {
+        try {
+          const ethBal = await provider.getBalance(userAddress);
+          ethBalance.textContent = parseFloat(
+            ethers.formatEther(ethBal)
+          ).toFixed(4);
 
-                if (contracts.mockUsdt) {
-                    const usdtBal = await contracts.mockUsdt.balanceOf(userAddress);
-                    usdtBalance.textContent = parseFloat(ethers.utils.formatUnits(usdtBal, 6)).toFixed(2);
-                }
-            } catch (error) {
-                console.error('Balance update failed:', error);
-            }
+          if (contracts.gameToken) {
+            const gtBal = await contracts.gameToken.balanceOf(userAddress);
+            gtBalance.textContent = parseFloat(
+              ethers.formatEther(gtBal)
+            ).toFixed(2);
+          }
+
+          if (contracts.mockUsdt) {
+            const usdtBal = await contracts.mockUsdt.balanceOf(userAddress);
+            usdtBalance.textContent = parseFloat(
+              ethers.formatUnits(usdtBal, 6)
+            ).toFixed(2);
+          }
+        } catch (error) {
+          console.error("Balance update failed:", error);
         }
+      }
 
-        // Faucet
-        faucetBtn.onclick = async () => {
-            try {
-                showStatus('🚰 Getting test USDT...', 'warning');
-                faucetBtn.innerHTML = '<div class="loading"><div class="spinner"></div>Getting USDT...</div>';
+      // Faucet
+      faucetBtn.onclick = async () => {
+        try {
+          showStatus("🚰 Getting test USDT...", "warning");
+          faucetBtn.innerHTML =
+            '<div class="loading"><div class="spinner"></div>Getting USDT...</div>';
 
-                const tx = await contracts.mockUsdt.faucet();
-                await tx.wait();
+          // Estimate gas first to avoid out of gas errors
+          const gasEstimate = await contracts.mockUsdt.faucet.estimateGas();
+          const gasLimit = (gasEstimate * 120n) / 100n; // Add 20% buffer
 
-                await updateBalances();
-                faucetBtn.innerHTML = '🚰 Get Test USDT (1000 USDT)';
-                showStatus('💰 Received 1000 test USDT!', 'success');
-            } catch (error) {
-                console.error(error);
-                faucetBtn.innerHTML = '🚰 Get Test USDT (1000 USDT)';
-                if (error.message.includes('cooldown')) {
-                    showStatus('⏰ Faucet cooldown active. Try again later.', 'warning');
-                } else {
-                    showStatus('❌ Faucet failed: ' + error.message, 'error');
-                }
+          const tx = await contracts.mockUsdt.faucet({ gasLimit });
+          await tx.wait();
+
+          await updateBalances();
+          faucetBtn.innerHTML = "🚰 Get Test USDT (1000 USDT)";
+          showStatus("💰 Received 1000 test USDT!", "success");
+        } catch (error) {
+          console.error(error);
+          faucetBtn.innerHTML = "🚰 Get Test USDT (1000 USDT)";
+          if (error.message.includes("cooldown")) {
+            showStatus(
+              "⏰ Faucet cooldown active. Try again later.",
+              "warning"
+            );
+          } else {
+            showStatus("❌ Faucet failed: " + error.message, "error");
+          }
+        }
+      };
+
+      // Buy Tokens
+      buyBtn.onclick = async () => {
+        try {
+          const amount = parseFloat(usdtAmount.value);
+          if (!amount || amount <= 0) {
+            showStatus("⚠️ Please enter a valid USDT amount", "warning");
+            return;
+          }
+
+          showStatus("⏳ Processing purchase...", "warning");
+          buyBtn.innerHTML =
+            '<div class="loading"><div class="spinner"></div>Processing...</div>';
+
+          const usdtWei = ethers.parseUnits(amount.toString(), 6);
+
+          // Approve USDT
+          const approveGas = await contracts.mockUsdt.approve.estimateGas(
+            CONFIG.CONTRACTS.TOKEN_STORE,
+            usdtWei
+          );
+          const approveTx = await contracts.mockUsdt.approve(
+            CONFIG.CONTRACTS.TOKEN_STORE,
+            usdtWei,
+            { gasLimit: (approveGas * 120n) / 100n }
+          );
+          await approveTx.wait();
+
+          // Purchase tokens
+          const purchaseGas =
+            await contracts.tokenStore.purchaseTokens.estimateGas(usdtWei);
+          const purchaseTx = await contracts.tokenStore.purchaseTokens(
+            usdtWei,
+            {
+              gasLimit: (purchaseGas * 120n) / 100n,
             }
-        };
+          );
+          await purchaseTx.wait();
 
-        // Buy Tokens
-        buyBtn.onclick = async () => {
-            try {
-                const amount = parseFloat(usdtAmount.value);
-                if (!amount || amount <= 0) {
-                    showStatus('⚠️ Please enter a valid USDT amount', 'warning');
-                    return;
-                }
+          await updateBalances();
+          usdtAmount.value = "";
+          gtReceive.value = "";
+          buyBtn.innerHTML = "Purchase GameTokens";
 
-                showStatus('⏳ Processing purchase...', 'warning');
-                buyBtn.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
+          showStatus("🎉 Tokens purchased successfully!", "success");
+        } catch (error) {
+          console.error(error);
+          buyBtn.innerHTML = "Purchase GameTokens";
+          showStatus("❌ Purchase failed: " + error.message, "error");
+        }
+      };
 
-                const usdtWei = ethers.utils.parseUnits(amount.toString(), 6);
+      // Create Match
+      createMatchBtn.onclick = async () => {
+        try {
+          const amount = parseFloat(stakeAmount.value);
+          if (!amount || amount <= 0) {
+            showStatus("⚠️ Please enter a valid stake amount", "warning");
+            return;
+          }
 
-                // Approve USDT
-                const approveTx = await contracts.mockUsdt.approve(CONFIG.CONTRACTS.TOKEN_STORE, usdtWei);
-                await approveTx.wait();
+          showStatus("⏳ Creating match...", "warning");
+          createMatchBtn.innerHTML =
+            '<div class="loading"><div class="spinner"></div>Creating...</div>';
 
-                // Purchase tokens
-                const purchaseTx = await contracts.tokenStore.purchaseTokens(usdtWei);
-                await purchaseTx.wait();
+          const stakeWei = ethers.parseEther(amount.toString());
 
-                await updateBalances();
-                usdtAmount.value = '';
-                gtReceive.value = '';
-                buyBtn.innerHTML = 'Purchase GameTokens';
+          // Approve GT tokens
+          const approveGas = await contracts.gameToken.approve.estimateGas(
+            CONFIG.CONTRACTS.PLAY_GAME,
+            stakeWei
+          );
+          const approveTx = await contracts.gameToken.approve(
+            CONFIG.CONTRACTS.PLAY_GAME,
+            stakeWei,
+            { gasLimit: (approveGas * 120n) / 100n }
+          );
+          await approveTx.wait();
 
-                showStatus('🎉 Tokens purchased successfully!', 'success');
-            } catch (error) {
-                console.error(error);
-                buyBtn.innerHTML = 'Purchase GameTokens';
-                showStatus('❌ Purchase failed: ' + error.message, 'error');
-            }
-        };
+          // Create match
+          const createGas = await contracts.playGame.createMatch.estimateGas(
+            stakeWei
+          );
+          const createTx = await contracts.playGame.createMatch(stakeWei, {
+            gasLimit: (createGas * 120n) / 100n,
+          });
+          await createTx.wait();
 
-        // Create Match
-        createMatchBtn.onclick = async () => {
-            try {
-                const amount = parseFloat(stakeAmount.value);
-                if (!amount || amount <= 0) {
-                    showStatus('⚠️ Please enter a valid stake amount', 'warning');
-                    return;
-                }
+          await updateBalances();
+          await loadMatches();
+          stakeAmount.value = "";
+          createMatchBtn.innerHTML = "Create Match";
 
-                showStatus('⏳ Creating match...', 'warning');
-                createMatchBtn.innerHTML = '<div class="loading"><div class="spinner"></div>Creating...</div>';
+          showStatus("🎉 Match created successfully!", "success");
+        } catch (error) {
+          console.error(error);
+          createMatchBtn.innerHTML = "Create Match";
+          showStatus("❌ Match creation failed: " + error.message, "error");
+        }
+      };
 
-                const stakeWei = ethers.utils.parseEther(amount.toString());
+      // Load Matches
+      async function loadMatches() {
+        try {
+          if (!contracts.playGame) return;
 
-                // Approve GT tokens
-                const approveTx = await contracts.gameToken.approve(CONFIG.CONTRACTS.PLAY_GAME, stakeWei);
-                await approveTx.wait();
+          const matchIds = await contracts.playGame.getPendingMatches(10);
 
-                // Create match
-                const createTx = await contracts.playGame.createMatch(stakeWei);
-                await createTx.wait();
-
-                await updateBalances();
-                await loadMatches();
-                stakeAmount.value = '';
-                createMatchBtn.innerHTML = 'Create Match';
-
-                showStatus('🎉 Match created successfully!', 'success');
-            } catch (error) {
-                console.error(error);
-                createMatchBtn.innerHTML = 'Create Match';
-                showStatus('❌ Match creation failed: ' + error.message, 'error');
-            }
-        };
-
-        // Load Matches
-        async function loadMatches() {
-            try {
-                if (!contracts.playGame) return;
-
-                const matchIds = await contracts.playGame.getPendingMatches(10);
-
-                if (matchIds.length === 0) {
-                    matchesList.innerHTML = `
+          if (matchIds.length === 0) {
+            matchesList.innerHTML = `
                         <div style="text-align:center; padding:40px; opacity:0.6;">
                             <p>🎯 No matches available</p>
                             <p style="font-size:0.9rem; margin-top:10px;">Create the first match to get started!</p>
                         </div>
                     `;
-                    return;
-                }
+            return;
+          }
 
-                let html = '';
-                for (let id of matchIds) {
-                    const match = await contracts.playGame.getMatch(id);
-                    const isOwn = match[1].toLowerCase() === userAddress.toLowerCase();
-                    const stake = ethers.utils.formatEther(match[3]);
-                    const potentialWin = (parseFloat(stake) * 1.95).toFixed(2);
+          let html = "";
+          for (let id of matchIds) {
+            const match = await contracts.playGame.getMatch(id);
+            const isOwn = match[1].toLowerCase() === userAddress.toLowerCase();
+            const stake = ethers.formatEther(match[3]);
+            const potentialWin = (parseFloat(stake) * 1.95).toFixed(2);
 
-                    html += `
+            html += `
                         <div class="match-item">
                             <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:15px;">
                                 <div>
                                     <h3 style="margin-bottom:8px;">🎮 Match #${id}</h3>
                                     <p style="opacity:0.8;">Stake: ${stake} GT</p>
                                     <p style="opacity:0.8;">Potential Win: ${potentialWin} GT</p>
-                                    <p style="font-size:0.9rem; opacity:0.6;">Creator: ${match[1].slice(0, 6)}...${match[1].slice(-4)}</p>
+                                    <p style="font-size:0.9rem; opacity:0.6;">Creator: ${match[1].slice(
+                                      0,
+                                      6
+                                    )}...${match[1].slice(-4)}</p>
                                 </div>
                                 <div class="match-actions">
-                                    ${!isOwn ? 
-                                        `<button onclick="joinMatch(${id})" class="btn small">🚀 Join Match</button>` :
-                                        '<span style="color:#f59e0b; font-weight:500;">⭐ Your Match</span>'
+                                    ${
+                                      !isOwn
+                                        ? `<button onclick="joinMatch(${id})" class="btn small">🚀 Join Match</button>`
+                                        : '<span style="color:#f59e0b; font-weight:500;">⭐ Your Match</span>'
                                     }
                                 </div>
                             </div>
                         </div>
                     `;
-                }
-                matchesList.innerHTML = html;
-            } catch (error) {
-                console.error('Failed to load matches:', error);
-                matchesList.innerHTML = '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load matches</div>';
-            }
+          }
+          matchesList.innerHTML = html;
+        } catch (error) {
+          console.error("Failed to load matches:", error);
+          matchesList.innerHTML =
+            '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load matches</div>';
         }
+      }
 
-        // Join Match
-        async function joinMatch(matchId) {
-            try {
-                showStatus('⏳ Joining match...', 'warning');
+      // Join Match
+      async function joinMatch(matchId) {
+        try {
+          showStatus("⏳ Joining match...", "warning");
 
-                const match = await contracts.playGame.getMatch(matchId);
-                const stakeAmount = match[3];
+          const match = await contracts.playGame.getMatch(matchId);
+          const stakeAmount = match[3];
 
-                // Approve GT tokens
-                const approveTx = await contracts.gameToken.approve(CONFIG.CONTRACTS.PLAY_GAME, stakeAmount);
-                await approveTx.wait();
+          // Approve GT tokens
+          const approveGas = await contracts.gameToken.approve.estimateGas(
+            CONFIG.CONTRACTS.PLAY_GAME,
+            stakeAmount
+          );
+          const approveTx = await contracts.gameToken.approve(
+            CONFIG.CONTRACTS.PLAY_GAME,
+            stakeAmount,
+            { gasLimit: (approveGas * 120n) / 100n }
+          );
+          await approveTx.wait();
 
-                // Join match
-                const joinTx = await contracts.playGame.joinMatch(matchId);
-                await joinTx.wait();
+          // Join match
+          const joinGas = await contracts.playGame.joinMatch.estimateGas(
+            matchId
+          );
+          const joinTx = await contracts.playGame.joinMatch(matchId, {
+            gasLimit: (joinGas * 120n) / 100n,
+          });
+          await joinTx.wait();
 
-                await updateBalances();
-                await loadMatches();
-                showStatus('🎉 Successfully joined match!', 'success');
-            } catch (error) {
-                console.error(error);
-                showStatus('❌ Failed to join match: ' + error.message, 'error');
-            }
+          await updateBalances();
+          await loadMatches();
+          showStatus("🎉 Successfully joined match!", "success");
+        } catch (error) {
+          console.error(error);
+          showStatus("❌ Failed to join match: " + error.message, "error");
         }
+      }
 
-        // Load Leaderboard
-        async function loadLeaderboard(type) {
-            try {
-                const endpoint = type === 'gaming' ? '/leaderboard' : '/purchases';
-                const response = await fetch(`${CONFIG.LEADERBOARD_URL}${endpoint}?limit=10`);
-                const data = await response.json();
+      // Load Leaderboard
+      async function loadLeaderboard(type) {
+        try {
+          const endpoint = type === "gaming" ? "/leaderboard" : "/purchases";
+          const response = await fetch(
+            `${CONFIG.LEADERBOARD_URL}${endpoint}?limit=10`
+          );
+          const data = await response.json();
 
-                let html = '';
-                if (type === 'gaming') {
-                    if (data.leaderboard.length === 0) {
-                        html = '<div style="text-align:center; padding:40px; opacity:0.6;"><p>🏆 No gaming data yet</p></div>';
-                    } else {
-                        data.leaderboard.forEach((player, index) => {
-                            html += `
+          let html = "";
+          if (type === "gaming") {
+            if (data.leaderboard.length === 0) {
+              html =
+                '<div style="text-align:center; padding:40px; opacity:0.6;"><p>🏆 No gaming data yet</p></div>';
+            } else {
+              data.leaderboard.forEach((player, index) => {
+                html += `
                                 <div class="leaderboard-item">
                                     <div class="rank">#${index + 1}</div>
                                     <div class="player-info">
-                                        <div style="font-weight:bold;">${player.address.slice(0, 6)}...${player.address.slice(-4)}</div>
-                                        <div class="player-address">W: ${player.wins} | L: ${player.losses} | Rate: ${player.winRate}%</div>
+                                        <div style="font-weight:bold;">${player.address.slice(
+                                          0,
+                                          6
+                                        )}...${player.address.slice(-4)}</div>
+                                        <div class="player-address">W: ${
+                                          player.wins
+                                        } | L: ${player.losses} | Rate: ${
+                  player.winRate
+                }%</div>
                                     </div>
                                     <div class="stats">
-                                        <div class="stat-value">+${player.netGT} GT</div>
-                                        <div style="font-size:0.9rem; opacity:0.7;">${player.totalMatches} matches</div>
+                                        <div class="stat-value">+${
+                                          player.netGT
+                                        } GT</div>
+                                        <div style="font-size:0.9rem; opacity:0.7;">${
+                                          player.totalMatches
+                                        } matches</div>
                                     </div>
                                 </div>
                             `;
-                        });
-                    }
-                } else {
-                    if (data.purchaseLeaderboard.length === 0) {
-                        html = '<div style="text-align:center; padding:40px; opacity:0.6;"><p>💰 No purchase data yet</p></div>';
-                    } else {
-                        data.purchaseLeaderboard.forEach((purchaser, index) => {
-                            html += `
+              });
+            }
+          } else {
+            if (data.purchaseLeaderboard.length === 0) {
+              html =
+                '<div style="text-align:center; padding:40px; opacity:0.6;"><p>💰 No purchase data yet</p></div>';
+            } else {
+              data.purchaseLeaderboard.forEach((purchaser, index) => {
+                html += `
                                 <div class="leaderboard-item">
                                     <div class="rank">#${index + 1}</div>
                                     <div class="player-info">
-                                        <div style="font-weight:bold;">${purchaser.address.slice(0, 6)}...${purchaser.address.slice(-4)}</div>
-                                        <div class="player-address">${purchaser.totalPurchases} purchases</div>
+                                        <div style="font-weight:bold;">${purchaser.address.slice(
+                                          0,
+                                          6
+                                        )}...${purchaser.address.slice(
+                  -4
+                )}</div>
+                                        <div class="player-address">${
+                                          purchaser.totalPurchases
+                                        } purchases</div>
                                     </div>
                                     <div class="stats">
-                                        <div class="stat-value">${purchaser.totalUSDTSpent} USDT</div>
-                                        <div style="font-size:0.9rem; opacity:0.7;">${purchaser.totalGTReceived} GT</div>
+                                        <div class="stat-value">${
+                                          purchaser.totalUSDTSpent
+                                        } USDT</div>
+                                        <div style="font-size:0.9rem; opacity:0.7;">${
+                                          purchaser.totalGTReceived
+                                        } GT</div>
                                     </div>
                                 </div>
                             `;
-                        });
-                    }
-                }
-
-                leaderboardList.innerHTML = html;
-            } catch (error) {
-                console.error('Failed to load leaderboard:', error);
-                leaderboardList.innerHTML = '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load leaderboard</div>';
+              });
             }
+          }
+
+          leaderboardList.innerHTML = html;
+        } catch (error) {
+          console.error("Failed to load leaderboard:", error);
+          leaderboardList.innerHTML =
+            '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load leaderboard</div>';
         }
+      }
 
-        // Load Stats
-        async function loadStats() {
-            try {
-                const response = await fetch(`${CONFIG.LEADERBOARD_URL}/stats`);
-                const data = await response.json();
+      // Load Stats
+      async function loadStats() {
+        try {
+          const response = await fetch(`${CONFIG.LEADERBOARD_URL}/stats`);
+          const data = await response.json();
 
-                const html = `
+          const html = `
                     <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px;">
                         <div class="balance-card">
                             <div class="balance-label">Total Players</div>
@@ -900,109 +1087,130 @@
                     </div>
                 `;
 
-                leaderboardList.innerHTML = html;
-            } catch (error) {
-                console.error('Failed to load stats:', error);
-                leaderboardList.innerHTML = '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load stats</div>';
-            }
+          leaderboardList.innerHTML = html;
+        } catch (error) {
+          console.error("Failed to load stats:", error);
+          leaderboardList.innerHTML =
+            '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load stats</div>';
         }
+      }
 
-        // Load Events
-        async function loadEvents(type) {
-            try {
-                const url = type === 'all' ? 
-                    `${CONFIG.LEADERBOARD_URL}/events?limit=20` :
-                    `${CONFIG.LEADERBOARD_URL}/events?limit=20&type=${type}`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
+      // Load Events
+      async function loadEvents(type) {
+        try {
+          const url =
+            type === "all"
+              ? `${CONFIG.LEADERBOARD_URL}/events?limit=20`
+              : `${CONFIG.LEADERBOARD_URL}/events?limit=20&type=${type}`;
 
-                if (data.events.length === 0) {
-                    eventsList.innerHTML = '<div style="text-align:center; padding:40px; opacity:0.6;"><p>📜 No events found</p></div>';
-                    return;
-                }
+          const response = await fetch(url);
+          const data = await response.json();
 
-                let html = '';
-                data.events.forEach(event => {
-                    const typeEmoji = {
-                        'Purchase': '💰',
-                        'MatchCreated': '🎮',
-                        'Staked': '🚀',
-                        'Settled': '🏆',
-                        'Cancelled': '❌'
-                    };
+          if (data.events.length === 0) {
+            eventsList.innerHTML =
+              '<div style="text-align:center; padding:40px; opacity:0.6;"><p>📜 No events found</p></div>';
+            return;
+          }
 
-                    html += `
+          let html = "";
+          data.events.forEach((event) => {
+            const typeEmoji = {
+              Purchase: "💰",
+              MatchCreated: "🎮",
+              Staked: "🚀",
+              Settled: "🏆",
+              Cancelled: "❌",
+            };
+
+            html += `
                         <div class="event-item">
                             <div style="display:flex; justify-content:space-between; align-items:start;">
                                 <div>
-                                    <h4>${typeEmoji[event.type] || '📝'} ${event.type}</h4>
+                                    <h4>${typeEmoji[event.type] || "📝"} ${
+              event.type
+            }</h4>
                                     <p style="font-size:0.9rem; opacity:0.8; margin:5px 0;">
                                         ${formatEventDetails(event)}
                                     </p>
                                     <p style="font-size:0.8rem; opacity:0.6;">
-                                        ${new Date(event.timestamp).toLocaleString()}
+                                        ${new Date(
+                                          event.timestamp
+                                        ).toLocaleString()}
                                     </p>
                                 </div>
                             </div>
                         </div>
                     `;
-                });
+          });
 
-                eventsList.innerHTML = html;
-            } catch (error) {
-                console.error('Failed to load events:', error);
-                eventsList.innerHTML = '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load events</div>';
-            }
+          eventsList.innerHTML = html;
+        } catch (error) {
+          console.error("Failed to load events:", error);
+          eventsList.innerHTML =
+            '<div style="text-align:center; padding:20px; color:#ef4444;">Failed to load events</div>';
         }
+      }
 
-        function formatEventDetails(event) {
-            switch (event.type) {
-                case 'Purchase':
-                    return `${event.buyer.slice(0, 6)}...${event.buyer.slice(-4)} bought ${event.gtAmount} GT with ${event.usdtAmount} USDT`;
-                case 'MatchCreated':
-                    return `Match #${event.matchId} created by ${event.player1.slice(0, 6)}...${event.player1.slice(-4)} with ${event.stakeAmount} GT stake`;
-                case 'Staked':
-                    return `${event.player2.slice(0, 6)}...${event.player2.slice(-4)} joined match #${event.matchId}`;
-                case 'Settled':
-                    return `Match #${event.matchId} won by ${event.winner.slice(0, 6)}...${event.winner.slice(-4)} (${event.payout} GT payout)`;
-                case 'Cancelled':
-                    return `Match #${event.matchId} cancelled`;
-                default:
-                    return JSON.stringify(event);
-            }
+      function formatEventDetails(event) {
+        switch (event.type) {
+          case "Purchase":
+            return `${event.buyer.slice(0, 6)}...${event.buyer.slice(
+              -4
+            )} bought ${event.gtAmount} GT with ${event.usdtAmount} USDT`;
+          case "MatchCreated":
+            return `Match #${event.matchId} created by ${event.player1.slice(
+              0,
+              6
+            )}...${event.player1.slice(-4)} with ${event.stakeAmount} GT stake`;
+          case "Staked":
+            return `${event.player2.slice(0, 6)}...${event.player2.slice(
+              -4
+            )} joined match #${event.matchId}`;
+          case "Settled":
+            return `Match #${event.matchId} won by ${event.winner.slice(
+              0,
+              6
+            )}...${event.winner.slice(-4)} (${event.payout} GT payout)`;
+          case "Cancelled":
+            return `Match #${event.matchId} cancelled`;
+          default:
+            return JSON.stringify(event);
         }
+      }
 
-        // Show Status
-        function showStatus(message, type) {
-            status.textContent = message;
-            status.className = `status ${type}`;
-            status.classList.remove('hidden');
-            setTimeout(() => status.classList.add('hidden'), 5000);
+      // Show Status
+      function showStatus(message, type) {
+        status.textContent = message;
+        status.className = `status ${type}`;
+        status.classList.remove("hidden");
+        setTimeout(() => status.classList.add("hidden"), 5000);
+      }
+
+      // Auto-refresh
+      setInterval(() => {
+        if (userAddress && contracts.gameToken) {
+          updateBalances();
+          if (currentTab === "matches") loadMatches();
+          if (currentTab === "leaderboard") loadLeaderboard("gaming");
+          if (currentTab === "events") loadEvents("all");
         }
+      }, 15000);
 
-        // Auto-refresh
-        setInterval(() => {
-            if (userAddress && contracts.gameToken) {
-                updateBalances();
-                if (currentTab === 'matches') loadMatches();
-                if (currentTab === 'leaderboard') loadLeaderboard('gaming');
-                if (currentTab === 'events') loadEvents('all');
-            }
-        }, 15000);
+      // Handle account/network changes
+      if (window.ethereum) {
+        window.ethereum.on("accountsChanged", () => location.reload());
+        window.ethereum.on("chainChanged", () => location.reload());
+      }
 
-        // Handle account/network changes
-        if (window.ethereum) {
-            window.ethereum.on('accountsChanged', () => location.reload());
-            window.ethereum.on('chainChanged', () => location.reload());
+      // Initial check for MetaMask
+      window.addEventListener("load", () => {
+        if (!window.ethereum) {
+          showStatus(
+            "❌ MetaMask not detected. Please install MetaMask to use this application.",
+            "error"
+          );
         }
-
-        // Initial check for MetaMask
-        window.addEventListener('load', () => {
-            if (!window.ethereum) {
-                showStatus('❌ MetaMask not detected. Please install MetaMask to use this application.', 'error');
-            }
-        });
+      });
     </script>
-</body>
+  </body>
 </html>
