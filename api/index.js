@@ -75,30 +75,29 @@ async function loadABIs() {
 
         // TokenStore ABI
         ABIS.TokenStore = [
-            "function purchaseTokens(uint256) external",
+            "function buy(uint256) external",
             "function getGTAmount(uint256) view returns (uint256)",
             "function getUSDTAmount(uint256) view returns (uint256)",
+            "function withdrawUSDT(address,uint256) external",
             "function totalPurchases() view returns (uint256)",
             "function totalUSDTReceived() view returns (uint256)",
-            "function getStats() view returns (uint256,uint256,address)",
-            "event TokensPurchased(address indexed,uint256,uint256,uint256)"
+            "function getStats() view returns (uint256,uint256,uint256)",
+            "event Purchase(address indexed,uint256,uint256)"
         ];
 
         // PlayGame ABI
         ABIS.PlayGame = [
-            "function createMatch(uint256) returns (uint256)",
-            "function joinMatch(uint256) external",
-            "function completeMatch(uint256,address) external",
-            "function cancelMatch(uint256) external",
-            "function getMatch(uint256) view returns (tuple(uint256,address,address,uint256,uint256,uint8,uint256,uint256,address))",
-            "function getPendingMatches(uint256) view returns (uint256[])",
-            "function getPlayerMatches(address) view returns (uint256[])",
-            "function getStats() view returns (uint256,uint256,uint256,uint256)",
-            "function getCurrentMatchId() view returns (uint256)",
-            "event MatchCreated(uint256 indexed,address indexed,uint256)",
-            "event PlayerJoined(uint256 indexed,address indexed)",
-            "event MatchCompleted(uint256 indexed,address indexed,uint256)",
-            "event MatchCancelled(uint256 indexed,address indexed,address indexed)"
+            "function createMatch(bytes32,address,address,uint256) external",
+            "function stake(bytes32) external",
+            "function commitResult(bytes32,address) external",
+            "function refund(bytes32) external",
+            "function getMatch(bytes32) view returns (tuple(bytes32,address,address,uint256,uint8,uint256,bool,bool))",
+            "function canRefund(bytes32) view returns (bool)",
+            "function getStats() view returns (uint256,uint256,uint256)",
+            "event MatchCreated(bytes32 indexed,address indexed,address indexed,uint256)",
+            "event Staked(bytes32 indexed,address indexed,uint256)",
+            "event Settled(bytes32 indexed,address indexed,uint256)",
+            "event Refunded(bytes32 indexed,address indexed,uint256)"
         ];
 
         console.log('📝 ABIs loaded successfully');
@@ -188,18 +187,25 @@ app.get('/usdt-balance/:address', async (req, res) => {
     }
 });
 
-// Purchase tokens
+// Purchase tokens - calls TokenStore.buy()
 app.get('/purchase', async (req, res) => {
     try {
         const { amount } = req.query;
-        if (!amount) {
-            return res.status(400).json({ error: 'Amount parameter required' });
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount parameter' });
         }
 
-        const usdtAmount = ethers.parseUnits(amount, 6);
+        const usdtAmount = ethers.parseUnits(amount.toString(), 6);
+
+        // Call TokenStore.buy() function
+        const tx = await contracts.tokenStore.buy(usdtAmount);
+        await tx.wait();
+
         const gtAmount = await contracts.tokenStore.getGTAmount(usdtAmount);
 
         res.json({
+            success: true,
+            txHash: tx.hash,
             usdtAmount: amount,
             gtAmount: ethers.formatEther(gtAmount),
             rate: '1:1'
@@ -233,19 +239,30 @@ app.post('/faucet/usdt', async (req, res) => {
     }
 });
 
-// Create match
+// Create match and coordinate stake flow
 app.post('/match/start', async (req, res) => {
     try {
         const { matchId, p1, p2, stake } = req.body;
 
-        // This is called by the frontend after createMatch transaction
-        // We can use this to track match creation events
+        if (!matchId || !p1 || !p2 || !stake) {
+            return res.status(400).json({ error: 'Missing required parameters: matchId, p1, p2, stake' });
+        }
+
+        // Generate bytes32 matchId from string
+        const matchIdBytes32 = ethers.keccak256(ethers.toUtf8Bytes(matchId));
+        const stakeAmount = ethers.parseEther(stake.toString());
+
+        // Call createMatch on the contract
+        const tx = await contracts.playGame.createMatch(matchIdBytes32, p1, p2, stakeAmount);
+        await tx.wait();
 
         res.json({
             success: true,
-            matchId,
+            txHash: tx.hash,
+            matchId: matchIdBytes32,
+            matchIdString: matchId,
             players: [p1, p2],
-            stake
+            stake: stake
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -268,7 +285,7 @@ app.post('/match/stake', async (req, res) => {
     }
 });
 
-// Submit match result
+// Submit match result - calls commitResult
 app.post('/match/result', async (req, res) => {
     try {
         const { matchId, winner } = req.body;
@@ -277,14 +294,19 @@ app.post('/match/result', async (req, res) => {
             return res.status(400).json({ error: 'matchId and winner required' });
         }
 
-        // Call completeMatch on the smart contract
-        const tx = await contracts.playGame.completeMatch(matchId, winner);
+        // Convert matchId to bytes32 if it's a string
+        const matchIdBytes32 = typeof matchId === 'string' && !matchId.startsWith('0x')
+            ? ethers.keccak256(ethers.toUtf8Bytes(matchId))
+            : matchId;
+
+        // Call commitResult on the smart contract
+        const tx = await contracts.playGame.commitResult(matchIdBytes32, winner);
         await tx.wait();
 
         res.json({
             success: true,
             txHash: tx.hash,
-            matchId,
+            matchId: matchIdBytes32,
             winner
         });
     } catch (error) {

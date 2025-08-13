@@ -4,79 +4,68 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
 import "./GameToken.sol";
 
 /**
  * @title PlayGame
  * @dev Contract for managing PvP match staking and payouts
- * @dev Accepts equal GT stakes from two players
  * @dev Implements escrow functionality with re-entrancy protection
+ * @dev Winner receives exactly 2x stake; no platform fees
  */
 contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
-    bytes32 public constant API_GATEWAY_ROLE = keccak256("API_GATEWAY_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     GameToken public immutable gameToken;
 
-    uint256 private _nextMatchId = 1;
+    uint256 public constant TIMEOUT_DURATION = 24 hours;
 
     struct Match {
-        uint256 matchId;
-        address player1;
-        address player2;
-        uint256 stakeAmount;
-        uint256 totalStake;
+        bytes32 matchId;
+        address p1;
+        address p2;
+        uint256 stake;
         MatchStatus status;
-        uint256 createdAt;
-        uint256 completedAt;
-        address winner;
+        uint256 startTime;
+        bool p1Staked;
+        bool p2Staked;
     }
 
     enum MatchStatus {
-        Pending, // Waiting for second player
-        Active, // Both players staked, match in progress
-        Completed, // Match finished, winner determined
-        Cancelled // Match cancelled (refunded)
+        CREATED, // Match created, waiting for stakes
+        STAKED, // Both players staked, match active
+        SETTLED, // Match completed with winner
+        REFUNDED // Match refunded due to timeout
     }
 
     // Match tracking
-    mapping(uint256 => Match) public matches;
-    mapping(address => uint256[]) public playerMatches;
+    mapping(bytes32 => Match) public matches;
 
     // Statistics
     uint256 public totalMatches;
     uint256 public totalStaked;
     uint256 public totalPayouts;
-    uint256 public platformFeePercentage = 500; // 5% (in basis points)
-    uint256 public constant BASIS_POINTS = 10000;
 
     // Events
     event MatchCreated(
-        uint256 indexed matchId,
-        address indexed player1,
-        uint256 stakeAmount
+        bytes32 indexed matchId,
+        address indexed p1,
+        address indexed p2,
+        uint256 stake
     );
-    event PlayerJoined(uint256 indexed matchId, address indexed player2);
-    event MatchCompleted(
-        uint256 indexed matchId,
-        address indexed winner,
-        uint256 payout
-    );
-    event MatchCancelled(
-        uint256 indexed matchId,
-        address indexed player1,
-        address indexed player2
-    );
-    event StakeRefunded(
-        uint256 indexed matchId,
+    event Staked(
+        bytes32 indexed matchId,
         address indexed player,
         uint256 amount
     );
-    event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
-    event EmergencyWithdraw(
-        address indexed token,
-        address indexed to,
+    event Settled(
+        bytes32 indexed matchId,
+        address indexed winner,
+        uint256 payout
+    );
+    event Refunded(
+        bytes32 indexed matchId,
+        address indexed player,
         uint256 amount
     );
 
@@ -93,81 +82,69 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
         gameToken = GameToken(_gameToken);
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(API_GATEWAY_ROLE, msg.sender);
+        _grantRole(OPERATOR_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
     }
 
     /**
-     * @dev Create a new match and stake GT tokens
-     * @param stakeAmount Amount of GT tokens to stake
-     * @return matchId The ID of the created match
+     * @dev Create a new match (owner/manager only)
+     * @param matchId Unique identifier for the match
+     * @param p1 Address of player 1
+     * @param p2 Address of player 2
+     * @param stake Amount of GT tokens each player must stake
      */
     function createMatch(
-        uint256 stakeAmount
-    ) external whenNotPaused nonReentrant returns (uint256 matchId) {
+        bytes32 matchId,
+        address p1,
+        address p2,
+        uint256 stake
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused nonReentrant {
+        require(matchId != bytes32(0), "PlayGame: invalid match ID");
+        require(p1 != address(0), "PlayGame: invalid player 1 address");
+        require(p2 != address(0), "PlayGame: invalid player 2 address");
+        require(p1 != p2, "PlayGame: players must be different");
+        require(stake > 0, "PlayGame: stake must be greater than 0");
         require(
-            stakeAmount > 0,
-            "PlayGame: stake amount must be greater than 0"
-        );
-        require(
-            gameToken.balanceOf(msg.sender) >= stakeAmount,
-            "PlayGame: insufficient GT balance"
-        );
-        require(
-            gameToken.allowance(msg.sender, address(this)) >= stakeAmount,
-            "PlayGame: insufficient GT allowance"
-        );
-
-        matchId = _nextMatchId;
-        _nextMatchId++;
-
-        // Transfer GT tokens from player to contract
-        require(
-            gameToken.transferFrom(msg.sender, address(this), stakeAmount),
-            "PlayGame: GT transfer failed"
+            matches[matchId].matchId == bytes32(0),
+            "PlayGame: match already exists"
         );
 
-        // Create match
         matches[matchId] = Match({
             matchId: matchId,
-            player1: msg.sender,
-            player2: address(0),
-            stakeAmount: stakeAmount,
-            totalStake: stakeAmount,
-            status: MatchStatus.Pending,
-            createdAt: block.timestamp,
-            completedAt: 0,
-            winner: address(0)
+            p1: p1,
+            p2: p2,
+            stake: stake,
+            status: MatchStatus.CREATED,
+            startTime: 0,
+            p1Staked: false,
+            p2Staked: false
         });
 
-        playerMatches[msg.sender].push(matchId);
         totalMatches++;
-        totalStaked += stakeAmount;
 
-        emit MatchCreated(matchId, msg.sender, stakeAmount);
-        return matchId;
+        emit MatchCreated(matchId, p1, p2, stake);
     }
 
     /**
-     * @dev Join an existing match by staking equal amount
-     * @param matchId ID of the match to join
+     * @dev Stake GT tokens for a match
+     * @param matchId ID of the match to stake for
      */
-    function joinMatch(uint256 matchId) external whenNotPaused nonReentrant {
+    function stake(bytes32 matchId) external whenNotPaused nonReentrant {
         Match storage matchData = matches[matchId];
         require(
-            matchData.status == MatchStatus.Pending,
-            "PlayGame: match not available"
-        );
-        require(
-            matchData.player1 != msg.sender,
-            "PlayGame: cannot join own match"
-        );
-        require(
-            matchData.player1 != address(0),
+            matchData.matchId != bytes32(0),
             "PlayGame: match does not exist"
         );
+        require(
+            matchData.status == MatchStatus.CREATED,
+            "PlayGame: match not available for staking"
+        );
+        require(
+            msg.sender == matchData.p1 || msg.sender == matchData.p2,
+            "PlayGame: not a participant"
+        );
 
-        uint256 stakeAmount = matchData.stakeAmount;
+        uint256 stakeAmount = matchData.stake;
         require(
             gameToken.balanceOf(msg.sender) >= stakeAmount,
             "PlayGame: insufficient GT balance"
@@ -177,99 +154,113 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
             "PlayGame: insufficient GT allowance"
         );
 
-        // Transfer GT tokens from player to contract
+        // Check if player already staked
+        if (msg.sender == matchData.p1) {
+            require(!matchData.p1Staked, "PlayGame: player 1 already staked");
+            matchData.p1Staked = true;
+        } else {
+            require(!matchData.p2Staked, "PlayGame: player 2 already staked");
+            matchData.p2Staked = true;
+        }
+
+        // Pull GT tokens via transferFrom
         require(
             gameToken.transferFrom(msg.sender, address(this), stakeAmount),
             "PlayGame: GT transfer failed"
         );
 
-        // Update match
-        matchData.player2 = msg.sender;
-        matchData.totalStake = stakeAmount * 2;
-        matchData.status = MatchStatus.Active;
-
-        playerMatches[msg.sender].push(matchId);
         totalStaked += stakeAmount;
 
-        emit PlayerJoined(matchId, msg.sender);
+        emit Staked(matchId, msg.sender, stakeAmount);
+
+        // If both players have staked, activate the match
+        if (matchData.p1Staked && matchData.p2Staked) {
+            matchData.status = MatchStatus.STAKED;
+            matchData.startTime = block.timestamp;
+        }
     }
 
     /**
-     * @dev Complete a match and pay out to winner (only callable by API Gateway)
-     * @param matchId ID of the match to complete
+     * @dev Commit match result (backend/operator only)
+     * @param matchId ID of the match
      * @param winner Address of the winning player
      */
-    function completeMatch(
-        uint256 matchId,
+    function commitResult(
+        bytes32 matchId,
         address winner
-    ) external onlyRole(API_GATEWAY_ROLE) whenNotPaused nonReentrant {
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused nonReentrant {
         Match storage matchData = matches[matchId];
         require(
-            matchData.status == MatchStatus.Active,
-            "PlayGame: match not active"
+            matchData.matchId != bytes32(0),
+            "PlayGame: match does not exist"
         );
         require(
-            winner == matchData.player1 || winner == matchData.player2,
+            matchData.status == MatchStatus.STAKED,
+            "PlayGame: match not staked"
+        );
+        require(
+            winner == matchData.p1 || winner == matchData.p2,
             "PlayGame: invalid winner"
         );
-        require(
-            winner != address(0),
-            "PlayGame: winner cannot be zero address"
-        );
 
-        uint256 totalStake = matchData.totalStake;
-        uint256 platformFee = (totalStake * platformFeePercentage) /
-            BASIS_POINTS;
-        uint256 winnerPayout = totalStake - platformFee;
+        uint256 totalPayout = matchData.stake * 2;
 
         // Update match status
-        matchData.status = MatchStatus.Completed;
-        matchData.completedAt = block.timestamp;
-        matchData.winner = winner;
+        matchData.status = MatchStatus.SETTLED;
 
-        // Transfer winnings to winner
+        // Transfer 2x stake GT to winner
         require(
-            gameToken.transfer(winner, winnerPayout),
+            gameToken.transfer(winner, totalPayout),
             "PlayGame: winner payout failed"
         );
 
-        totalPayouts += winnerPayout;
+        totalPayouts += totalPayout;
 
-        emit MatchCompleted(matchId, winner, winnerPayout);
+        emit Settled(matchId, winner, totalPayout);
     }
 
     /**
-     * @dev Cancel a pending match and refund stake (only callable by player1 or admin)
-     * @param matchId ID of the match to cancel
+     * @dev Refund stakes after timeout if match not settled
+     * @param matchId ID of the match to refund
      */
-    function cancelMatch(uint256 matchId) external whenNotPaused nonReentrant {
+    function refund(bytes32 matchId) external whenNotPaused nonReentrant {
         Match storage matchData = matches[matchId];
         require(
-            matchData.status == MatchStatus.Pending,
-            "PlayGame: match cannot be cancelled"
+            matchData.matchId != bytes32(0),
+            "PlayGame: match does not exist"
         );
         require(
-            msg.sender == matchData.player1 ||
-                hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "PlayGame: not authorized to cancel"
+            matchData.status == MatchStatus.STAKED,
+            "PlayGame: match not eligible for refund"
+        );
+        require(
+            block.timestamp >= matchData.startTime + TIMEOUT_DURATION,
+            "PlayGame: refund timeout not reached"
         );
 
-        uint256 stakeAmount = matchData.stakeAmount;
+        uint256 stakeAmount = matchData.stake;
 
         // Update match status
-        matchData.status = MatchStatus.Cancelled;
-        matchData.completedAt = block.timestamp;
+        matchData.status = MatchStatus.REFUNDED;
 
-        // Refund stake to player1
-        require(
-            gameToken.transfer(matchData.player1, stakeAmount),
-            "PlayGame: refund failed"
-        );
+        // Refund stakes to both players
+        if (matchData.p1Staked) {
+            require(
+                gameToken.transfer(matchData.p1, stakeAmount),
+                "PlayGame: p1 refund failed"
+            );
+            totalStaked -= stakeAmount;
+            emit Refunded(matchId, matchData.p1, stakeAmount);
+        }
 
-        totalStaked -= stakeAmount;
-
-        emit MatchCancelled(matchId, matchData.player1, matchData.player2);
-        emit StakeRefunded(matchId, matchData.player1, stakeAmount);
+        if (matchData.p2Staked) {
+            require(
+                gameToken.transfer(matchData.p2, stakeAmount),
+                "PlayGame: p2 refund failed"
+            );
+            totalStaked -= stakeAmount;
+            emit Refunded(matchId, matchData.p2, stakeAmount);
+        }
     }
 
     /**
@@ -278,60 +269,21 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
      * @return matchData Complete match data
      */
     function getMatch(
-        uint256 matchId
+        bytes32 matchId
     ) external view returns (Match memory matchData) {
         return matches[matchId];
     }
 
     /**
-     * @dev Get all matches for a player
-     * @param player Address of the player
-     * @return matchIds Array of match IDs
+     * @dev Check if a match can be refunded
+     * @param matchId ID of the match
+     * @return canRefund True if match can be refunded
      */
-    function getPlayerMatches(
-        address player
-    ) external view returns (uint256[] memory matchIds) {
-        return playerMatches[player];
-    }
-
-    /**
-     * @dev Get pending matches available to join
-     * @param limit Maximum number of matches to return
-     * @return pendingMatches Array of pending match IDs
-     */
-    function getPendingMatches(
-        uint256 limit
-    ) external view returns (uint256[] memory pendingMatches) {
-        uint256 count = 0;
-        uint256 maxMatches = _nextMatchId - 1;
-        uint256[] memory temp = new uint256[](maxMatches);
-
-        for (uint256 i = 1; i <= maxMatches && count < limit; i++) {
-            if (matches[i].status == MatchStatus.Pending) {
-                temp[count] = i;
-                count++;
-            }
-        }
-
-        pendingMatches = new uint256[](count);
-        for (uint256 i = 0; i < count; i++) {
-            pendingMatches[i] = temp[i];
-        }
-
-        return pendingMatches;
-    }
-
-    /**
-     * @dev Update platform fee percentage (only callable by admin)
-     * @param newFeePercentage New fee percentage in basis points
-     */
-    function updatePlatformFee(
-        uint256 newFeePercentage
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(newFeePercentage <= 1000, "PlayGame: fee cannot exceed 10%");
-        uint256 oldFee = platformFeePercentage;
-        platformFeePercentage = newFeePercentage;
-        emit PlatformFeeUpdated(oldFee, newFeePercentage);
+    function canRefund(bytes32 matchId) external view returns (bool canRefund) {
+        Match memory matchData = matches[matchId];
+        return
+            matchData.status == MatchStatus.STAKED &&
+            block.timestamp >= matchData.startTime + TIMEOUT_DURATION;
     }
 
     /**
@@ -365,7 +317,6 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
         );
 
         gameToken.transfer(to, amount);
-        emit EmergencyWithdraw(address(gameToken), to, amount);
     }
 
     /**
@@ -373,7 +324,6 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
      * @return _totalMatches Total number of matches created
      * @return _totalStaked Total amount staked
      * @return _totalPayouts Total amount paid out
-     * @return _platformFeePercentage Current platform fee percentage
      */
     function getStats()
         external
@@ -381,11 +331,10 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
         returns (
             uint256 _totalMatches,
             uint256 _totalStaked,
-            uint256 _totalPayouts,
-            uint256 _platformFeePercentage
+            uint256 _totalPayouts
         )
     {
-        return (totalMatches, totalStaked, totalPayouts, platformFeePercentage);
+        return (totalMatches, totalStaked, totalPayouts);
     }
 
     /**
@@ -393,12 +342,5 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
      */
     function isPaused() external view returns (bool) {
         return paused();
-    }
-
-    /**
-     * @dev Get current match ID counter
-     */
-    function getCurrentMatchId() external view returns (uint256) {
-        return _nextMatchId - 1;
     }
 }

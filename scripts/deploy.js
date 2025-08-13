@@ -30,18 +30,19 @@ async function main() {
   console.log("   GameToken deployed to:", await gameToken.getAddress());
   console.log("   Initial supply:", ethers.formatEther(INITIAL_SUPPLY), "GT");
 
-  // 2. Deploy TokenStore
+  // 2. Deploy TokenStore  
   console.log("\n2. Deploying TokenStore...");
   const TokenStore = await ethers.getContractFactory("TokenStore");
+  const GT_PER_USDT = ethers.parseEther("1"); // 1:1 conversion rate (1e18)
   const tokenStore = await TokenStore.deploy(
-    await gameToken.getAddress(),
     USDT_ADDRESS,
-    TREASURY_ADDRESS
+    await gameToken.getAddress(),
+    GT_PER_USDT
   );
   await tokenStore.waitForDeployment();
   console.log("   TokenStore deployed to:", await tokenStore.getAddress());
   console.log("   USDT Address:", USDT_ADDRESS);
-  console.log("   Treasury Address:", TREASURY_ADDRESS);
+  console.log("   GT per USDT:", ethers.formatEther(GT_PER_USDT));
 
   // 3. Deploy PlayGame
   console.log("\n3. Deploying PlayGame...");
@@ -58,10 +59,10 @@ async function main() {
   await gameToken.grantRole(MINTER_ROLE, await tokenStore.getAddress());
   console.log("   ✓ Granted MINTER_ROLE to TokenStore");
 
-  // Grant API_GATEWAY_ROLE to deployer (will be transferred to actual API Gateway)
-  const API_GATEWAY_ROLE = await playGame.API_GATEWAY_ROLE();
-  await playGame.grantRole(API_GATEWAY_ROLE, deployer.address);
-  console.log("   ✓ Granted API_GATEWAY_ROLE to deployer");
+  // Grant OPERATOR_ROLE to deployer (will be transferred to actual API Gateway)
+  const OPERATOR_ROLE = await playGame.OPERATOR_ROLE();
+  await playGame.grantRole(OPERATOR_ROLE, deployer.address);
+  console.log("   ✓ Granted OPERATOR_ROLE to deployer");
 
   // 5. Verify initial setup
   console.log("\n5. Verifying initial setup...");
@@ -72,8 +73,8 @@ async function main() {
   const tokenStoreMinterRole = await gameToken.hasRole(MINTER_ROLE, await tokenStore.getAddress());
   console.log("   TokenStore has MINTER_ROLE:", tokenStoreMinterRole);
 
-  const playGameApiRole = await playGame.hasRole(API_GATEWAY_ROLE, deployer.address);
-  console.log("   Deployer has API_GATEWAY_ROLE:", playGameApiRole);
+  const playGameOperatorRole = await playGame.hasRole(OPERATOR_ROLE, deployer.address);
+  console.log("   Deployer has OPERATOR_ROLE:", playGameOperatorRole);
 
   // 6. Output deployment summary
   console.log("\n=== Deployment Summary ===");
@@ -105,7 +106,7 @@ async function main() {
     },
     roles: {
       MINTER_ROLE: MINTER_ROLE,
-      API_GATEWAY_ROLE: API_GATEWAY_ROLE
+      OPERATOR_ROLE: OPERATOR_ROLE
     },
     deploymentTime: new Date().toISOString()
   };
@@ -124,7 +125,7 @@ async function main() {
 
   console.log("\n=== Next Steps ===");
   console.log("1. Verify contracts on Etherscan (if on public network)");
-  console.log("2. Transfer API_GATEWAY_ROLE to your API Gateway service");
+  console.log("2. Transfer OPERATOR_ROLE to your API Gateway service");
   console.log("3. Update USDT_ADDRESS for mainnet deployment");
   console.log("4. Set up monitoring and alerting");
   console.log("5. Test the complete flow on testnet first");
