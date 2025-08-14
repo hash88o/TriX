@@ -1,36 +1,34 @@
 {
   "version": 2,
-  "name": "trix-tictactoe",
   "builds": [
     {
-      "src": "web/**",
+      "src": "web/**/*",
       "use": "@vercel/static"
     },
     {
-      "src": "matchmaking-server.js",
+      "src": "api/**/*.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/",
-      "dest": "/web/tictactoe.html"
-    },
-    {
       "src": "/api/(.*)",
-      "dest": "/matchmaking-server.js"
+      "dest": "/api/$1"
     },
     {
       "src": "/(.*)",
       "dest": "/web/$1"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
   "functions": {
-    "matchmaking-server.js": {
+    "api/index.js": {
+      "maxDuration": 30
+    },
+    "api/matchmaking.js": {
       "maxDuration": 30
     }
+  },
+  "env": {
+    "NODE_ENV": "production"
   }
 }

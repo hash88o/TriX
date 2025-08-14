@@ -50,7 +50,9 @@ function findMatch(playerData) {
             board: Array(9).fill(''),
             currentPlayer: 'X',
             gameActive: false,
-            stakedPlayers: new Set(),
+            player1Staked: false,
+            player2Staked: false,
+            blockchainMatchId: null,
             moves: [],
             player1SocketId: waitingPlayer.socketId,
             player2SocketId: playerData.socketId
@@ -151,38 +153,75 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Handle match creation (when both players have pre-staked)
+    // Handle match creation (when Player 1 creates and stakes)
     socket.on('matchCreated', (data) => {
-        const { matchId, player1, player2, stake } = data;
+        const { matchId, player1, player2, stake, playerStaked, blockchainMatchId } = data;
         const match = activeMatches.get(matchId);
 
         if (match) {
-            // Both players have already pre-staked, so we can start the game
-            match.status = 'STAKED';
-            match.gameActive = true;
-            match.blockchainMatchId = data.blockchainMatchId;
+            match.blockchainMatchId = blockchainMatchId;
 
-            // Notify both players that game can start
-            const player1Socket = playerSessions.get(match.player1SocketId);
-            const player2Socket = playerSessions.get(match.player2SocketId);
+            // Mark that Player 1 has staked
+            if (playerStaked.toLowerCase() === match.player1.toLowerCase()) {
+                match.player1Staked = true;
+                console.log(`✅ Player 1 (${playerStaked}) has staked in match ${matchId}`);
+            }
+        }
+    });
 
-            if (player1Socket) {
-                player1Socket.emit('gameStart', {
-                    matchId,
-                    symbol: 'X',
-                    isFirst: true
-                });
+    // Handle notification to Player 2 (broadcast that match is created)
+    socket.on('notifyPlayer2', (data) => {
+        console.log(`🎮 Notifying Player 2 about match created on-chain: ${data.matchId}`);
+
+        // Broadcast to the other player that match is created and they can stake
+        socket.broadcast.emit('matchCreatedOnChain', {
+            matchId: data.matchId,
+            blockchainMatchId: data.blockchainMatchId,
+            createdBy: data.createdBy
+        });
+    });
+
+    // Handle player staking confirmation (when Player 2 stakes)
+    socket.on('playerStaked', (data) => {
+        console.log(`💰 Player staked: ${data.player} in match ${data.matchId}`);
+
+        const match = activeMatches.get(data.matchId);
+        if (match) {
+            // Mark that Player 2 has staked
+            if (data.player.toLowerCase() === match.player2.toLowerCase()) {
+                match.player2Staked = true;
+                console.log(`✅ Player 2 (${data.player}) has staked in match ${data.matchId}`);
             }
 
-            if (player2Socket) {
-                player2Socket.emit('gameStart', {
-                    matchId,
-                    symbol: 'O',
-                    isFirst: false
-                });
-            }
+            // Check if both players have staked
+            if (match.player1Staked && match.player2Staked) {
+                console.log(`🎮 Both players staked! Starting game for match ${data.matchId}`);
 
-            console.log(`Game started: ${matchId} with blockchain match: ${data.blockchainMatchId}`);
+                match.status = 'STAKED';
+                match.gameActive = true;
+
+                // Get player sockets
+                const player1Socket = playerSessions.get(match.player1SocketId);
+                const player2Socket = playerSessions.get(match.player2SocketId);
+
+                if (player1Socket) {
+                    player1Socket.emit('gameStart', {
+                        matchId: data.matchId,
+                        symbol: 'X',
+                        isFirst: true
+                    });
+                }
+
+                if (player2Socket) {
+                    player2Socket.emit('gameStart', {
+                        matchId: data.matchId,
+                        symbol: 'O',
+                        isFirst: false
+                    });
+                }
+
+                console.log(`🎮 Game started: ${data.matchId} with blockchain match: ${data.blockchainMatchId}`);
+            }
         }
     });
 
@@ -226,9 +265,9 @@ io.on('connection', (socket) => {
                 match.moves.push({ row, col, symbol });
 
                 // Check for win
-                const winner = checkWin(match.board, symbol);
-                if (winner) {
-                    endGame(matchId, winner);
+                const isWin = checkWin(match.board, symbol);
+                if (isWin) {
+                    endGame(matchId, symbol); // Pass the winning symbol, not boolean
                 } else if (checkDraw(match.board)) {
                     endGame(matchId, 'DRAW');
                 } else {
@@ -299,9 +338,12 @@ function checkWin(board, symbol) {
         [0, 4, 8], [2, 4, 6] // Diagonals
     ];
 
-    return winConditions.some(condition => {
+    const hasWon = winConditions.some(condition => {
         return condition.every(index => board[index] === symbol);
     });
+
+    console.log(`🔍 Checking win for ${symbol}:`, board, 'Result:', hasWon);
+    return hasWon;
 }
 
 function checkDraw(board) {
