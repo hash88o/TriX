@@ -320,6 +320,31 @@ contract PlayGame is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @dev Refund pre-staked amount (for matchmaking timeouts)
+     * @param player Address of the player to refund
+     * @param amount Amount to refund
+     */
+    function refundPreStake(
+        address player,
+        uint256 amount
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused nonReentrant {
+        require(player != address(0), "PlayGame: invalid player address");
+        require(amount > 0, "PlayGame: amount must be greater than 0");
+        require(
+            amount <= gameToken.balanceOf(address(this)),
+            "PlayGame: insufficient balance"
+        );
+
+        require(
+            gameToken.transfer(player, amount),
+            "PlayGame: pre-stake refund failed"
+        );
+
+        totalStaked -= amount;
+        emit Refunded(bytes32(0), player, amount); // Use zero bytes32 for pre-stake refunds
+    }
+
+    /**
      * @dev Get contract statistics
      * @return _totalMatches Total number of matches created
      * @return _totalStaked Total amount staked

@@ -34,6 +34,14 @@ const services = [
         color: colors.magenta
     },
     {
+        name: 'Matchmaking',
+        command: 'node',
+        args: ['matchmaking-server.js'],
+        cwd: process.cwd(),
+        port: 3002,
+        color: colors.yellow
+    },
+    {
         name: 'Frontend',
         command: 'npx',
         args: ['http-server', 'web', '-p', '8080', '--cors'],
@@ -60,13 +68,13 @@ function logSystem(message, isError = false) {
 // Check if .env file exists and has required variables
 function checkEnvironment() {
     const envPath = path.join(process.cwd(), '.env');
-    
+
     if (!fs.existsSync(envPath)) {
         logSystem('❌ .env file not found! Creating template...', true);
         createEnvTemplate();
         return false;
     }
-    
+
     const envContent = fs.readFileSync(envPath, 'utf8');
     const requiredVars = [
         'RPC_URL',
@@ -76,18 +84,18 @@ function checkEnvironment() {
         'PLAYGAME_ADDR',
         'MOCKUSDT_ADDR'
     ];
-    
+
     const missingVars = requiredVars.filter(varName => {
-        return !envContent.includes(`${varName}=`) || 
-               envContent.match(new RegExp(`${varName}=\\s*$`, 'm'));
+        return !envContent.includes(`${varName}=`) ||
+            envContent.match(new RegExp(`${varName}=\\s*$`, 'm'));
     });
-    
+
     if (missingVars.length > 0) {
         logSystem(`❌ Missing environment variables: ${missingVars.join(', ')}`, true);
         logSystem('Please update your .env file with the deployed contract addresses', true);
         return false;
     }
-    
+
     return true;
 }
 
@@ -128,14 +136,14 @@ TREASURY_ADDRESS=
 async function checkContracts() {
     try {
         require('dotenv').config();
-        
+
         const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:8545';
         const provider = new ethers.JsonRpcProvider(rpcUrl);
-        
+
         // Check if we can connect to the network
         await provider.getNetwork();
         logSystem('✅ Connected to blockchain network');
-        
+
         // Check if contract addresses are valid
         const contracts = {
             'GameToken': process.env.GAMETOKEN_ADDR,
@@ -143,20 +151,20 @@ async function checkContracts() {
             'PlayGame': process.env.PLAYGAME_ADDR,
             'MockUSDT': process.env.MOCKUSDT_ADDR
         };
-        
+
         for (const [name, address] of Object.entries(contracts)) {
             if (!address || address === '0x0000000000000000000000000000000000000000') {
                 logSystem(`❌ ${name} address not set in .env`, true);
                 return false;
             }
-            
+
             const code = await provider.getCode(address);
             if (code === '0x') {
                 logSystem(`❌ No contract found at ${name} address: ${address}`, true);
                 return false;
             }
         }
-        
+
         logSystem('✅ All contracts verified on blockchain');
         return true;
     } catch (error) {
@@ -169,22 +177,22 @@ async function checkContracts() {
 async function generateABIs() {
     try {
         const abiDir = path.join(process.cwd(), 'api', 'abis');
-        
+
         // Create ABIs directory if it doesn't exist
         if (!fs.existsSync(abiDir)) {
             fs.mkdirSync(abiDir, { recursive: true });
         }
-        
+
         // Copy ABIs from artifacts if they exist
         const artifactsDir = path.join(process.cwd(), 'artifacts', 'contracts');
-        
+
         if (fs.existsSync(artifactsDir)) {
             const contracts = ['GameToken.sol', 'TokenStore.sol', 'PlayGame.sol'];
-            
+
             for (const contractFile of contracts) {
                 const contractName = contractFile.replace('.sol', '');
                 const artifactPath = path.join(artifactsDir, contractFile, `${contractName}.json`);
-                
+
                 if (fs.existsSync(artifactPath)) {
                     const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
                     const abiPath = path.join(abiDir, `${contractName}.json`);
@@ -193,7 +201,7 @@ async function generateABIs() {
                 }
             }
         }
-        
+
         return true;
     } catch (error) {
         logSystem(`⚠️  Failed to generate ABIs: ${error.message}`);
@@ -205,27 +213,27 @@ async function generateABIs() {
 function startService(service) {
     return new Promise((resolve, reject) => {
         log(service, '🚀 Starting...');
-        
+
         const process = spawn(service.command, service.args, {
             cwd: service.cwd,
             stdio: ['pipe', 'pipe', 'pipe'],
             shell: true
         });
-        
+
         process.stdout.on('data', (data) => {
             const output = data.toString().trim();
             if (output) {
                 log(service, output);
             }
         });
-        
+
         process.stderr.on('data', (data) => {
             const output = data.toString().trim();
             if (output && !output.includes('DeprecationWarning')) {
                 log(service, output, true);
             }
         });
-        
+
         process.on('close', (code) => {
             if (code !== 0) {
                 log(service, `❌ Exited with code ${code}`, true);
@@ -233,16 +241,16 @@ function startService(service) {
                 log(service, '✅ Stopped gracefully');
             }
         });
-        
+
         process.on('error', (error) => {
             log(service, `❌ Failed to start: ${error.message}`, true);
             reject(error);
         });
-        
+
         // Store the process
         service.process = process;
         runningServices.push(service);
-        
+
         // Wait a bit for the service to start
         setTimeout(() => {
             log(service, `✅ Started on port ${service.port}`);
@@ -254,14 +262,14 @@ function startService(service) {
 // Stop all services
 function stopAllServices() {
     logSystem('🛑 Stopping all services...');
-    
+
     runningServices.forEach(service => {
         if (service.process && !service.process.killed) {
             log(service, '🛑 Stopping...');
             service.process.kill('SIGTERM');
         }
     });
-    
+
     // Force kill after 5 seconds
     setTimeout(() => {
         runningServices.forEach(service => {
@@ -281,14 +289,14 @@ async function main() {
 ║          Service Orchestrator          ║
 ╚════════════════════════════════════════╝${colors.reset}
 `);
-    
+
     // Check environment
     logSystem('🔍 Checking environment...');
     if (!checkEnvironment()) {
         logSystem('❌ Environment check failed. Please configure .env file.', true);
         process.exit(1);
     }
-    
+
     // Check contracts
     logSystem('🔍 Checking blockchain contracts...');
     if (!await checkContracts()) {
@@ -296,11 +304,11 @@ async function main() {
         logSystem('Run: npm run deploy', true);
         process.exit(1);
     }
-    
+
     // Generate ABIs
     logSystem('📝 Generating ABIs...');
     await generateABIs();
-    
+
     // Install dependencies if needed
     const apiPackagePath = path.join(process.cwd(), 'api', 'package.json');
     if (fs.existsSync(apiPackagePath)) {
@@ -316,16 +324,16 @@ async function main() {
             }
         }
     }
-    
+
     logSystem('🚀 Starting all services...');
-    
+
     try {
         // Start services sequentially with delays
         for (const service of services) {
             await startService(service);
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        
+
         // Display service URLs
         console.log(`${colors.bright}${colors.green}
 ╔════════════════════════════════════════╗
@@ -346,7 +354,7 @@ async function main() {
 
 ${colors.yellow}Press Ctrl+C to stop all services${colors.reset}
 `);
-        
+
     } catch (error) {
         logSystem(`❌ Failed to start services: ${error.message}`, true);
         stopAllServices();

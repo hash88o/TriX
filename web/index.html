@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TriX Gaming Platform</title>
     <script src="./ethers-6.7.1.umd.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -166,6 +167,64 @@
             📝 Anyone can create matches for any two players. The assigned
             players will see the match in their "My Matches" section and can
             stake.
+          </div>
+        </div>
+
+        <!-- Realtime Matchmaking (Demo) -->
+        <div class="card">
+          <div class="section-header">
+            <span class="icon">⚡</span>
+            <span>Realtime Matchmaking (Demo)</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="mmStake">Stake Amount (GT)</label>
+            <input
+              class="form-input"
+              type="number"
+              id="mmStake"
+              placeholder="e.g. 10"
+              step="0.01"
+              min="0"
+            />
+          </div>
+
+          <button id="findOpponentBtn" class="btn btn-primary" disabled>
+            <span>🔍 Find Opponent</span>
+          </button>
+
+          <div id="mmStatus" class="info-text" style="margin-top: 8px">
+            Connect wallet to use matchmaking
+          </div>
+
+          <div id="mmStakeConfirm" class="hidden" style="margin-top: 12px">
+            <button id="confirmStakeBtn" class="btn btn-warning">
+              <span>✅ Approve & Stake</span>
+            </button>
+            <div class="info-text">
+              Approve and stake the GT amount to enter escrow.
+            </div>
+          </div>
+
+          <div id="mmCancel" class="hidden" style="margin-top: 12px">
+            <button id="cancelMatchmakingBtn" class="btn btn-danger">
+              <span>❌ Cancel & Refund</span>
+            </button>
+            <div class="info-text">
+              Cancel matchmaking and get your stake back.
+            </div>
+          </div>
+
+          <div id="mmGame" class="hidden" style="margin-top: 16px">
+            <div id="mmTurn" class="info-text" style="margin-bottom: 8px"></div>
+            <div
+              id="mmBoard"
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 64px);
+                gap: 6px;
+              "
+            ></div>
           </div>
         </div>
       </div>
@@ -435,6 +494,15 @@
       const refreshMatchesBtn = document.getElementById("refreshMatchesBtn");
       const manualMatchId = document.getElementById("manualMatchId");
       const stakeInMatchBtn = document.getElementById("stakeInMatchBtn");
+      const findOpponentBtn = document.getElementById("findOpponentBtn");
+      const mmStake = document.getElementById("mmStake");
+      const mmStatus = document.getElementById("mmStatus");
+      const mmStakeConfirm = document.getElementById("mmStakeConfirm");
+      const confirmStakeBtn = document.getElementById("confirmStakeBtn");
+      const mmCancel = document.getElementById("mmCancel");
+      const mmGame = document.getElementById("mmGame");
+      const mmBoard = document.getElementById("mmBoard");
+      const mmTurn = document.getElementById("mmTurn");
       const resultMatchId = document.getElementById("resultMatchId");
       const player1Winner = document.getElementById("player1Winner");
       const player2Winner = document.getElementById("player2Winner");
@@ -732,6 +800,7 @@
           stakeInMatchBtn.disabled = false;
           declareResultBtn.disabled = false;
           faucetBtn.disabled = false;
+          findOpponentBtn.disabled = false;
 
           console.log("🎮 Loading assigned matches...");
           await loadAssignedMatches();
@@ -745,10 +814,285 @@
           console.log("✅ Wallet connection complete!");
           showStatus("✅ Wallet connected successfully!", "success");
           addEvent("🎉 Wallet connected and ready");
+          setupMatchmaking();
         } catch (error) {
           console.error("❌ Wallet connection failed:", error);
           showStatus("❌ Connection failed: " + error.message, "error");
           connectBtn.innerHTML = "<span>Connect Wallet</span>";
+        }
+      };
+
+      // ======== Realtime Matchmaking (Demo) ========
+      let socket;
+      const MATCHMAKING_URL = "http://localhost:3002";
+      const mmState = {
+        socketMatchId: null,
+        blockchainMatchId: null,
+        player1: null,
+        player2: null,
+        stake: null,
+        mySymbol: null,
+        isMyTurn: false,
+        preStaked: false,
+      };
+
+      function setupMatchmaking() {
+        try {
+          if (!window.io) {
+            console.warn("Socket.IO not loaded");
+            return;
+          }
+          socket = io(MATCHMAKING_URL, { transports: ["websocket"] });
+          mmStatus.textContent =
+            "Connected to matchmaking. Enter stake and click Find Opponent.";
+
+          // Matchmaking status updates
+          socket.on("matchmakingStatus", (data) => {
+            mmStatus.textContent = data.message || data.status;
+
+            if (data.status === "waiting") {
+              mmCancel.classList.remove("hidden");
+              findOpponentBtn.disabled = true;
+            } else if (data.status === "matched") {
+              mmCancel.classList.add("hidden");
+            } else if (data.status === "cancelled") {
+              mmCancel.classList.add("hidden");
+              findOpponentBtn.disabled = false;
+              mmState.preStaked = false;
+            }
+          });
+
+          // Match found
+          socket.on("matchFound", (matchData) => {
+            mmState.socketMatchId = matchData.matchId;
+            mmState.player1 = matchData.player1;
+            mmState.player2 = matchData.player2;
+            mmState.stake = matchData.stake;
+            mmStatus.textContent = `Match found! ${short(
+              matchData.player1
+            )} vs ${short(matchData.player2)} • Stake ${matchData.stake} GT`;
+
+            // Both players have already pre-staked, so create the match on-chain
+            createMatchOnChain(matchData);
+          });
+
+          // Game start
+          socket.on("gameStart", ({ matchId, symbol, isFirst }) => {
+            if (matchId !== mmState.socketMatchId) return;
+            mmState.mySymbol = symbol;
+            mmState.isMyTurn = !!isFirst;
+            mmGame.classList.remove("hidden");
+            buildBoard();
+            updateTurnText();
+          });
+
+          // Opponent move
+          socket.on("moveMade", ({ row, col, symbol, nextPlayer }) => {
+            const idx = row * 3 + col;
+            const cell = mmBoard.children[idx];
+            if (cell && !cell.textContent) {
+              cell.textContent = symbol;
+            }
+            mmState.isMyTurn = nextPlayer === mmState.mySymbol;
+            updateTurnText();
+          });
+
+          // Game end
+          socket.on(
+            "gameEnd",
+            async ({ winner, winnerAddress, finalBoard }) => {
+              if (finalBoard) {
+                finalBoard.forEach((v, i) => {
+                  if (v && mmBoard.children[i])
+                    mmBoard.children[i].textContent = v;
+                });
+              }
+              if (winnerAddress) {
+                mmStatus.textContent = `Game over. Winner: ${short(
+                  winnerAddress
+                )}. Submitting result on-chain...`;
+                // Only winner submits result to avoid duplicate submissions
+                if (
+                  winnerAddress.toLowerCase() === userAddress.toLowerCase() &&
+                  mmState.blockchainMatchId
+                ) {
+                  try {
+                    const resp = await fetch(
+                      "http://localhost:3000/match/result",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          matchId: mmState.blockchainMatchId,
+                          winner: winnerAddress,
+                        }),
+                      }
+                    );
+                    const data = await resp.json();
+                    if (!resp.ok)
+                      throw new Error(data.error || "Commit failed");
+                    mmStatus.textContent = `Result submitted. Tx: ${short(
+                      data.txHash
+                    )}`;
+                  } catch (e) {
+                    console.error(e);
+                    mmStatus.textContent = `Failed to submit result: ${e.message}`;
+                  }
+                }
+              } else {
+                mmStatus.textContent = "Game ended in a draw.";
+              }
+            }
+          );
+        } catch (err) {
+          console.error("Matchmaking setup failed", err);
+        }
+      }
+
+      function short(addr) {
+        if (!addr) return "";
+        return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+      }
+
+      function buildBoard() {
+        mmBoard.innerHTML = "";
+        for (let i = 0; i < 9; i++) {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-secondary";
+          btn.style.width = "64px";
+          btn.style.height = "64px";
+          btn.style.fontSize = "20px";
+          btn.style.padding = "0";
+          btn.onclick = () => doMove(i);
+          mmBoard.appendChild(btn);
+        }
+      }
+
+      function updateTurnText() {
+        mmTurn.textContent = mmState.isMyTurn ? "Your turn" : "Opponent's turn";
+      }
+
+      async function doMove(index) {
+        if (!mmState.isMyTurn) return;
+        const row = Math.floor(index / 3);
+        const col = index % 3;
+        socket.emit("makeMove", {
+          matchId: mmState.socketMatchId,
+          row,
+          col,
+          symbol: mmState.mySymbol,
+        });
+      }
+
+      async function createMatchOnChain(matchData) {
+        try {
+          // Create match on-chain via backend (uses operator wallet)
+          const resp = await fetch("http://localhost:3000/match/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              p1: matchData.player1,
+              p2: matchData.player2,
+              stake: matchData.stake,
+              matchId: matchData.matchId,
+            }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || "Failed to create match");
+
+          mmState.blockchainMatchId = data.matchId;
+
+          // Notify matchmaking server that match is created
+          socket.emit("matchCreated", {
+            matchId: matchData.matchId,
+            player1: matchData.player1,
+            player2: matchData.player2,
+            stake: matchData.stake,
+            blockchainMatchId: data.matchId,
+          });
+        } catch (e) {
+          console.error(e);
+          mmStatus.textContent = `Failed to create match: ${e.message}`;
+        }
+      }
+
+      findOpponentBtn.onclick = async () => {
+        if (!socket) return;
+        const stake = parseFloat(mmStake.value);
+        if (!stake || stake <= 0) {
+          mmStatus.textContent = "Enter a valid stake amount";
+          return;
+        }
+
+        try {
+          // First, pre-stake the amount on-chain
+          const amountWei = ethers.parseUnits(String(stake), 18);
+
+          // 1) Approve spending
+          const approveTx = await contracts.gameToken.approve(
+            CONFIG.contracts.PLAY_GAME,
+            amountWei
+          );
+          await approveTx.wait();
+
+          // 2) Pre-stake tokens (this will be refunded if no match found)
+          const preStakeTx = await contracts.playGame.stake(
+            ethers.keccak256(
+              ethers.solidityPacked(
+                ["string"],
+                [`pre_stake_${userAddress}_${Date.now()}`]
+              )
+            )
+          );
+          await preStakeTx.wait();
+
+          // 3) Notify matchmaking server
+          socket.emit("findMatch", {
+            address: userAddress,
+            stake: parseInt(stake),
+          });
+
+          mmState.preStaked = true;
+          mmStatus.textContent = "Stake confirmed. Searching for opponent...";
+        } catch (e) {
+          console.error(e);
+          mmStatus.textContent = `Failed to pre-stake: ${e.message}`;
+        }
+      };
+
+      // Cancel matchmaking button
+      document.getElementById("cancelMatchmakingBtn").onclick = async () => {
+        if (!socket || !mmState.preStaked) return;
+
+        try {
+          socket.emit("cancelMatchmaking", { address: userAddress });
+
+          // Call refund API to get the pre-staked amount back
+          const resp = await fetch(
+            "http://localhost:3000/match/refund-prestake",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                player: userAddress,
+                amount: mmState.stake || mmStake.value,
+              }),
+            }
+          );
+
+          if (resp.ok) {
+            const data = await resp.json();
+            mmStatus.textContent = `Refund successful! Tx: ${short(
+              data.txHash
+            )}`;
+            mmState.preStaked = false;
+          } else {
+            const error = await resp.json();
+            mmStatus.textContent = `Refund failed: ${error.error}`;
+          }
+        } catch (e) {
+          console.error(e);
+          mmStatus.textContent = `Failed to cancel: ${e.message}`;
         }
       };
 

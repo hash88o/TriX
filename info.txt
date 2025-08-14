@@ -1,0 +1,6 @@
+[9:23 AM, 8/14/2025] harsh: npx hardhat node
+node api/index.js
+node tools/leaderboard.js
+npx http-server web -p 8080 --cors
+[10:57 AM, 8/14/2025] harsh: 96bc99c9d14d49cfb944c4ed2119e635
+[10:57 AM, 8/14/2025] harsh: https://mainnet.infura.io/v3/96bc99c9d14d49cfb944c4ed2119e635

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TriX Tic-Tac-Toe - Blockchain Gaming</title>
+    <link rel="stylesheet" href="tictactoe.css" />
+    <script src="ethers-6.7.1.umd.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Header -->
+      <header class="header">
+        <div class="container">
+          <h1 class="logo">🎮 TriX Tic-Tac-Toe</h1>
+          <div class="wallet-info" id="walletInfo" style="display: none">
+            <span class="address" id="walletAddress"></span>
+            <div class="balances">
+              <span class="balance">ETH: <span id="ethBalance">0</span></span>
+              <span class="balance">USDT: <span id="usdtBalance">0</span></span>
+              <span class="balance">GT: <span id="gtBalance">0</span></span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="main">
+        <div class="container">
+          <!-- Connect Wallet Section -->
+          <div id="connectSection" class="section">
+            <div class="card">
+              <h2>🔗 Connect Your Wallet</h2>
+              <p>
+                Connect MetaMask to start playing TriX Tic-Tac-Toe with
+                blockchain staking!
+              </p>
+              <button id="connectWallet" class="btn btn-primary">
+                Connect MetaMask
+              </button>
+            </div>
+          </div>
+
+          <!-- Dashboard Section -->
+          <div id="dashboardSection" class="section" style="display: none">
+            <div class="dashboard-grid">
+              <!-- Token Purchase -->
+              <div class="card">
+                <h3>💰 Buy Game Tokens (GT)</h3>
+                <div class="form-group">
+                  <label for="usdtAmount">USDT Amount:</label>
+                  <input
+                    type="number"
+                    id="usdtAmount"
+                    placeholder="Enter USDT amount"
+                    min="1"
+                  />
+                  <button id="buyGT" class="btn btn-secondary">
+                    Buy GT Tokens
+                  </button>
+                </div>
+                <div class="info">
+                  <p>Exchange Rate: 1 USDT = 1 GT</p>
+                  <p>You'll receive: <span id="gtAmount">0</span> GT</p>
+                </div>
+              </div>
+
+              <!-- Matchmaking -->
+              <div class="card">
+                <h3>🎯 Find Match</h3>
+                <div class="form-group">
+                  <label for="stakeAmount">Stake Amount (GT):</label>
+                  <input
+                    type="number"
+                    id="stakeAmount"
+                    placeholder="Enter stake amount"
+                    min="1"
+                  />
+                  <button id="findMatch" class="btn btn-success">
+                    Find Match
+                  </button>
+                </div>
+                <div
+                  class="matchmaking-status"
+                  id="matchmakingStatus"
+                  style="display: none"
+                >
+                  <p>🔍 Searching for opponent...</p>
+                  <div class="loading-spinner"></div>
+                </div>
+              </div>
+
+              <!-- Leaderboard -->
+              <div class="card">
+                <h3>📊 Leaderboard</h3>
+                <div id="leaderboard" class="leaderboard">
+                  <div class="loading">Loading...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stake Confirmation Section -->
+          <div id="stakeSection" class="section" style="display: none">
+            <div class="card">
+              <h2>🔒 Stake Confirmation</h2>
+              <div class="match-info">
+                <p>
+                  <strong>Match ID:</strong> <span id="stakeMatchId"></span>
+                </p>
+                <p>
+                  <strong>Opponent:</strong> <span id="stakeOpponent"></span>
+                </p>
+                <p>
+                  <strong>Stake Amount:</strong>
+                  <span id="stakeAmount">0</span> GT
+                </p>
+                <p>
+                  <strong>Total Pot:</strong> <span id="totalPot">0</span> GT
+                  (2x stake)
+                </p>
+              </div>
+              <div class="stake-actions">
+                <button id="approveAndStake" class="btn btn-warning">
+                  Approve GT & Stake
+                </button>
+                <button id="cancelMatch" class="btn btn-danger">
+                  Cancel Match
+                </button>
+              </div>
+              <div class="stake-status" id="stakeStatus" style="display: none">
+                <p id="stakeStatusText">Waiting for opponent to stake...</p>
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Game Section -->
+          <div id="gameSection" class="section" style="display: none">
+            <div class="game-container">
+              <!-- Game Info -->
+              <div class="game-info">
+                <h2>🎮 Tic-Tac-Toe Match</h2>
+                <div class="match-details">
+                  <p>Match ID: <span id="matchId"></span></p>
+                  <p>Stake: <span id="matchStake"></span> GT</p>
+                  <p>Total Pot: <span id="gameTotalPot"></span> GT</p>
+                  <p>Status: <span id="gameStatus">Game in Progress</span></p>
+                </div>
+                <div class="players">
+                  <div class="player">
+                    <span class="player-name" id="player1Name">Player 1</span>
+                    <span class="player-symbol">X</span>
+                  </div>
+                  <div class="player">
+                    <span class="player-name" id="player2Name">Player 2</span>
+                    <span class="player-symbol">O</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Game Board -->
+              <div class="game-board" id="gameBoard">
+                <div class="board-row">
+                  <div class="cell" data-row="0" data-col="0"></div>
+                  <div class="cell" data-row="0" data-col="1"></div>
+                  <div class="cell" data-row="0" data-col="2"></div>
+                </div>
+                <div class="board-row">
+                  <div class="cell" data-row="1" data-col="0"></div>
+                  <div class="cell" data-row="1" data-col="1"></div>
+                  <div class="cell" data-row="1" data-col="2"></div>
+                </div>
+                <div class="board-row">
+                  <div class="cell" data-row="2" data-col="0"></div>
+                  <div class="cell" data-row="2" data-col="1"></div>
+                  <div class="cell" data-row="2" data-col="2"></div>
+                </div>
+              </div>
+
+              <!-- Game Actions -->
+              <div class="game-actions">
+                <button id="forfeitButton" class="btn btn-danger">
+                  Forfeit Match
+                </button>
+              </div>
+
+              <!-- Transaction History -->
+              <div class="transaction-history">
+                <h3>📋 Transaction History</h3>
+                <div id="transactionLog" class="transaction-log">
+                  <p>No transactions yet</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Section -->
+          <div id="resultsSection" class="section" style="display: none">
+            <div class="card">
+              <h2>🏆 Winner Declaration & Payout</h2>
+              <div class="winner-info">
+                <h3 id="winnerText">Winner gets 2× stake GT!</h3>
+                <div class="winner-details">
+                  <p>
+                    <strong>Winner:</strong> <span id="winnerAddress"></span>
+                  </p>
+                  <p>
+                    <strong>Match ID:</strong> <span id="resultsMatchId"></span>
+                  </p>
+                  <p>
+                    <strong>Stake Amount:</strong>
+                    <span id="resultsStake"></span> GT
+                  </p>
+                  <p>
+                    <strong>Total Payout:</strong>
+                    <span id="resultsPayout"></span> GT
+                  </p>
+                </div>
+              </div>
+              <div class="transaction-status">
+                <h4>Transaction Status</h4>
+                <div id="txStatus" class="status-pending">
+                  <span class="status-icon">⏳</span>
+                  <span class="status-text">Pending...</span>
+                </div>
+                <div id="txHash" class="tx-hash" style="display: none">
+                  <p><strong>Transaction Hash:</strong></p>
+                  <a
+                    id="txHashLink"
+                    href="#"
+                    target="_blank"
+                    class="btn btn-primary"
+                  >
+                    View on Blockchain Explorer
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- History Section -->
+          <div id="historySection" class="section" style="display: none">
+            <div class="card">
+              <h2>📋 Post-Game History</h2>
+              <div class="last-match-summary">
+                <h3>Last Match Summary</h3>
+                <div class="match-summary">
+                  <p>
+                    <strong>Match ID:</strong> <span id="historyMatchId"></span>
+                  </p>
+                  <p>
+                    <strong>Opponent:</strong>
+                    <span id="historyOpponent"></span>
+                  </p>
+                  <p>
+                    <strong>Stake:</strong> <span id="historyStake"></span> GT
+                  </p>
+                  <p>
+                    <strong>Result:</strong> <span id="historyResult"></span>
+                  </p>
+                  <p>
+                    <strong>Transaction:</strong>
+                    <a id="historyTxLink" href="#" target="_blank"
+                      >View on Explorer</a
+                    >
+                  </p>
+                </div>
+              </div>
+              <div class="history-actions">
+                <button id="playAgain" class="btn btn-success">
+                  Play Again
+                </button>
+                <button id="viewLeaderboard" class="btn btn-secondary">
+                  View Leaderboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Modals -->
+      <div id="modal" class="modal" style="display: none">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <div id="modalContent"></div>
+        </div>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div id="loadingOverlay" class="loading-overlay" style="display: none">
+        <div class="loading-content">
+          <div class="spinner"></div>
+          <p id="loadingText">Processing transaction...</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="tictactoe.js"></script>
+  </body>
+</html>
