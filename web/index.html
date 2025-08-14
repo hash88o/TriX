@@ -550,7 +550,7 @@
             console.log("🌐 Production mode - checking Vercel API...");
             try {
               const response = await fetch(
-                "https://frontend-trix.vercel.app/api/health"
+                "https://trix-mpe3.onrender.com/health"
               );
               const healthData = await response.json();
 
@@ -559,7 +559,7 @@
                   "https://eth-sepolia.g.alchemy.com/v2/1NFhV9cMA4vShirJHIwX2",
                 chainId: 11155111, // Sepolia
                 contracts: healthData.contracts,
-                apiBaseUrl: "https://frontend-trix.vercel.app/api",
+                apiBaseUrl: "https://trix-mpe3.onrender.com",
               };
             } catch (error) {
               console.warn(
@@ -575,30 +575,37 @@
                   PLAY_GAME: "0xa3eE2EF1A305105445006E97d970443A063E76DD",
                   MOCK_USDT: "0x9620fEfD83D6038f80148A686E3258C2E15dEE96",
                 },
-                apiBaseUrl: "https://frontend-trix.vercel.app/api",
+                apiBaseUrl: "https://trix-mpe3.onrender.com",
               };
             }
           }
           console.log("✅ Configuration loaded:", CONFIG.contracts);
 
-          // Check Hardhat node status
-          console.log("🔍 Checking Hardhat node status...");
-          try {
-            const hardhatResponse = await fetch("http://localhost:8545", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                method: "eth_blockNumber",
-                params: [],
-                id: 1,
-              }),
-            });
-            const hardhatData = await hardhatResponse.json();
-            console.log("✅ Hardhat node status:", hardhatData);
-          } catch (hardhatError) {
-            console.error("❌ Hardhat node not responding:", hardhatError);
-            showStatus("❌ Hardhat node not running", "error");
+          // Check network status (only for localhost)
+          if (
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1"
+          ) {
+            console.log("🔍 Checking Hardhat node status...");
+            try {
+              const hardhatResponse = await fetch("http://localhost:8545", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  jsonrpc: "2.0",
+                  method: "eth_blockNumber",
+                  params: [],
+                  id: 1,
+                }),
+              });
+              const hardhatData = await hardhatResponse.json();
+              console.log("✅ Hardhat node status:", hardhatData);
+            } catch (hardhatError) {
+              console.error("❌ Hardhat node not responding:", hardhatError);
+              showStatus("❌ Hardhat node not running", "error");
+            }
+          } else {
+            console.log("🌐 Production mode - skipping Hardhat check");
           }
 
           updateConnectionStatus(false);
@@ -624,21 +631,31 @@
           });
           console.log("🔗 Current chainId:", chainId);
 
-          if (chainId !== "0x539") {
-            // 1337 in hex
+          // Check if we're in production or localhost
+          const isLocalhost =
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1";
+          const expectedChainId = isLocalhost ? "0x539" : "0xaa36a7"; // 1337 for localhost, 11155111 for Sepolia
+          const expectedNetworkName = isLocalhost
+            ? "Localhost 8545"
+            : "Sepolia Testnet";
+
+          if (chainId !== expectedChainId) {
             console.error(
-              "❌ Wrong network! Expected 0x539 (1337), got:",
+              `❌ Wrong network! Expected ${expectedChainId} (${expectedNetworkName}), got:`,
               chainId
             );
 
             // Try to automatically switch to the correct network
             try {
-              console.log("🔄 Attempting to switch to localhost network...");
+              console.log(
+                `🔄 Attempting to switch to ${expectedNetworkName}...`
+              );
               await window.ethereum.request({
                 method: "wallet_switchEthereumChain",
-                params: [{ chainId: "0x539" }],
+                params: [{ chainId: expectedChainId }],
               });
-              console.log("✅ Successfully switched to localhost network");
+              console.log(`✅ Successfully switched to ${expectedNetworkName}`);
               return true;
             } catch (switchError) {
               console.error("❌ Failed to switch network:", switchError);
@@ -646,11 +663,9 @@
               // If the network doesn't exist, try to add it
               if (switchError.code === 4902) {
                 try {
-                  console.log("➕ Adding localhost network...");
-                  await window.ethereum.request({
-                    method: "wallet_addEthereumChain",
-                    params: [
-                      {
+                  console.log(`➕ Adding ${expectedNetworkName}...`);
+                  const networkParams = isLocalhost
+                    ? {
                         chainId: "0x539",
                         chainName: "Localhost 8545",
                         nativeCurrency: {
@@ -660,17 +675,33 @@
                         },
                         rpcUrls: ["http://127.0.0.1:8545"],
                         blockExplorerUrls: [],
-                      },
-                    ],
+                      }
+                    : {
+                        chainId: "0xaa36a7",
+                        chainName: "Sepolia Testnet",
+                        nativeCurrency: {
+                          name: "Sepolia Ether",
+                          symbol: "ETH",
+                          decimals: 18,
+                        },
+                        rpcUrls: [
+                          "https://eth-sepolia.g.alchemy.com/v2/1NFhV9cMA4vShirJHIwX2",
+                        ],
+                        blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                      };
+
+                  await window.ethereum.request({
+                    method: "wallet_addEthereumChain",
+                    params: [networkParams],
                   });
-                  console.log("✅ Successfully added localhost network");
+                  console.log(`✅ Successfully added ${expectedNetworkName}`);
                   return true;
                 } catch (addError) {
                   console.error("❌ Failed to add network:", addError);
                 }
               }
 
-              showStatus("❌ Please switch to Localhost 8545 network", "error");
+              showStatus(`❌ Please switch to ${expectedNetworkName}`, "error");
               return false;
             }
           }
@@ -903,7 +934,7 @@
           const MATCHMAKING_URL =
             window.location.hostname === "localhost"
               ? "http://localhost:3002"
-              : "https://frontend-trix.vercel.app"; // Vercel handles Socket.IO differently
+              : "https://trix-mpe3.onrender.com";
 
           socket = io(MATCHMAKING_URL, { transports: ["websocket"] });
           mmStatus.textContent =
