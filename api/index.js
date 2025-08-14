@@ -354,6 +354,40 @@ app.post('/match/result', async (req, res) => {
     }
 });
 
+// Refund pre-staked amount (for matchmaking timeouts)
+app.post('/match/refund-prestake', async (req, res) => {
+    try {
+        const { player, amount } = req.body;
+
+        if (!player || !amount) {
+            return res.status(400).json({ error: 'player and amount required' });
+        }
+
+        console.log(`💸 Refunding pre-stake:`);
+        console.log(`   Player: ${player}`);
+        console.log(`   Amount: ${amount} GT`);
+
+        const amountWei = ethers.parseEther(amount.toString());
+
+        // Call refundPreStake on the smart contract
+        const tx = await contracts.playGame.refundPreStake(player, amountWei);
+        await tx.wait();
+
+        console.log(`✅ Pre-stake refunded successfully!`);
+
+        res.json({
+            success: true,
+            txHash: tx.hash,
+            player,
+            amount: amount,
+            message: `Pre-stake refunded to ${player}`
+        });
+    } catch (error) {
+        console.error('Error refunding pre-stake:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Get matches for a specific player (pending stakes)
 app.get('/matches/for-player/:address', async (req, res) => {
     try {

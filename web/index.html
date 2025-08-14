@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TriX Gaming Platform</title>
     <script src="./ethers-6.7.1.umd.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -166,6 +167,64 @@
             📝 Anyone can create matches for any two players. The assigned
             players will see the match in their "My Matches" section and can
             stake.
+          </div>
+        </div>
+
+        <!-- Realtime Matchmaking (Demo) -->
+        <div class="card">
+          <div class="section-header">
+            <span class="icon">⚡</span>
+            <span>Realtime Matchmaking (Demo)</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="mmStake">Stake Amount (GT)</label>
+            <input
+              class="form-input"
+              type="number"
+              id="mmStake"
+              placeholder="e.g. 10"
+              step="0.01"
+              min="0"
+            />
+          </div>
+
+          <button id="findOpponentBtn" class="btn btn-primary" disabled>
+            <span>🔍 Find Opponent</span>
+          </button>
+
+          <div id="mmStatus" class="info-text" style="margin-top: 8px">
+            Connect wallet to use matchmaking
+          </div>
+
+          <div id="mmStakeConfirm" class="hidden" style="margin-top: 12px">
+            <button id="confirmStakeBtn" class="btn btn-warning">
+              <span>✅ Approve & Stake</span>
+            </button>
+            <div class="info-text">
+              Approve and stake the GT amount to enter escrow.
+            </div>
+          </div>
+
+          <div id="mmCancel" class="hidden" style="margin-top: 12px">
+            <button id="cancelMatchmakingBtn" class="btn btn-danger">
+              <span>❌ Cancel & Refund</span>
+            </button>
+            <div class="info-text">
+              Cancel matchmaking and get your stake back.
+            </div>
+          </div>
+
+          <div id="mmGame" class="hidden" style="margin-top: 16px">
+            <div id="mmTurn" class="info-text" style="margin-bottom: 8px"></div>
+            <div
+              id="mmBoard"
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 64px);
+                gap: 6px;
+              "
+            ></div>
           </div>
         </div>
       </div>
@@ -388,7 +447,17 @@
       let signer;
       let userAddress;
       let contracts = {};
-      let CONFIG = {};
+      let CONFIG = {
+        rpcUrl: "http://127.0.0.1:8545",
+        chainId: 1337, // Localhost chain ID
+        contracts: {
+          GAME_TOKEN: "0x...", // Will be loaded from backend
+          TOKEN_STORE: "0x...", // Will be loaded from backend
+          PLAY_GAME: "0x...", // Will be loaded from backend
+          MOCK_USDT: "0x...", // Will be loaded from backend
+        },
+        apiBaseUrl: "http://localhost:3000", // Local API base URL
+      };
       let isConnected = false;
       let assignedMatches = new Map(); // Track matches assigned to current user
 
@@ -435,6 +504,15 @@
       const refreshMatchesBtn = document.getElementById("refreshMatchesBtn");
       const manualMatchId = document.getElementById("manualMatchId");
       const stakeInMatchBtn = document.getElementById("stakeInMatchBtn");
+      const findOpponentBtn = document.getElementById("findOpponentBtn");
+      const mmStake = document.getElementById("mmStake");
+      const mmStatus = document.getElementById("mmStatus");
+      const mmStakeConfirm = document.getElementById("mmStakeConfirm");
+      const confirmStakeBtn = document.getElementById("confirmStakeBtn");
+      const mmCancel = document.getElementById("mmCancel");
+      const mmGame = document.getElementById("mmGame");
+      const mmBoard = document.getElementById("mmBoard");
+      const mmTurn = document.getElementById("mmTurn");
       const resultMatchId = document.getElementById("resultMatchId");
       const player1Winner = document.getElementById("player1Winner");
       const player2Winner = document.getElementById("player2Winner");
@@ -450,10 +528,57 @@
         try {
           console.log("🚀 Initializing application...");
 
-          // Check backend status
-          console.log("🔍 Checking backend status...");
-          const response = await fetch("http://localhost:3000/health");
-          CONFIG = await response.json();
+          // Check if we're in local development or production
+          const isLocal =
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1";
+
+          if (isLocal) {
+            // Local development - get config from backend
+            console.log("🔍 Checking local backend status...");
+            const response = await fetch("http://localhost:3000/health");
+            const healthData = await response.json();
+
+            CONFIG = {
+              rpcUrl: "http://127.0.0.1:8545",
+              chainId: 1337,
+              contracts: healthData.contracts,
+              apiBaseUrl: "http://localhost:3000",
+            };
+          } else {
+            // Production on Vercel
+            console.log("🌐 Production mode - checking Vercel API...");
+            try {
+              const response = await fetch(
+                "https://frontend-trix.vercel.app/api/health"
+              );
+              const healthData = await response.json();
+
+              CONFIG = {
+                rpcUrl:
+                  "https://eth-sepolia.g.alchemy.com/v2/1NFhV9cMA4vShirJHIwX2",
+                chainId: 11155111, // Sepolia
+                contracts: healthData.contracts,
+                apiBaseUrl: "https://frontend-trix.vercel.app/api",
+              };
+            } catch (error) {
+              console.warn(
+                "⚠️ Could not load production config, using fallback"
+              );
+              CONFIG = {
+                rpcUrl:
+                  "https://eth-sepolia.g.alchemy.com/v2/1NFhV9cMA4vShirJHIwX2",
+                chainId: 11155111, // Sepolia
+                contracts: {
+                  GAME_TOKEN: "0x7740aF6224458cd62CEDC93f3E47735d3628Aa23",
+                  TOKEN_STORE: "0x574c85CBB55533f75894613D1869AC0EBC515156",
+                  PLAY_GAME: "0xa3eE2EF1A305105445006E97d970443A063E76DD",
+                  MOCK_USDT: "0x9620fEfD83D6038f80148A686E3258C2E15dEE96",
+                },
+                apiBaseUrl: "https://frontend-trix.vercel.app/api",
+              };
+            }
+          }
           console.log("✅ Configuration loaded:", CONFIG.contracts);
 
           // Check Hardhat node status
@@ -732,6 +857,7 @@
           stakeInMatchBtn.disabled = false;
           declareResultBtn.disabled = false;
           faucetBtn.disabled = false;
+          findOpponentBtn.disabled = false;
 
           console.log("🎮 Loading assigned matches...");
           await loadAssignedMatches();
@@ -745,10 +871,356 @@
           console.log("✅ Wallet connection complete!");
           showStatus("✅ Wallet connected successfully!", "success");
           addEvent("🎉 Wallet connected and ready");
+          setupMatchmaking();
         } catch (error) {
           console.error("❌ Wallet connection failed:", error);
           showStatus("❌ Connection failed: " + error.message, "error");
           connectBtn.innerHTML = "<span>Connect Wallet</span>";
+        }
+      };
+
+      // ======== Realtime Matchmaking (Demo) ========
+      let socket;
+      // Will be set based on environment
+      const mmState = {
+        socketMatchId: null,
+        blockchainMatchId: null,
+        player1: null,
+        player2: null,
+        stake: null,
+        mySymbol: null,
+        isMyTurn: false,
+      };
+
+      function setupMatchmaking() {
+        try {
+          if (!window.io) {
+            console.warn("Socket.IO not loaded");
+            return;
+          }
+
+          // Set matchmaking URL based on environment
+          const MATCHMAKING_URL =
+            window.location.hostname === "localhost"
+              ? "http://localhost:3002"
+              : "https://frontend-trix.vercel.app"; // Vercel handles Socket.IO differently
+
+          socket = io(MATCHMAKING_URL, { transports: ["websocket"] });
+          mmStatus.textContent =
+            "Connected to matchmaking. Enter stake and click Find Opponent.";
+
+          // Matchmaking status updates
+          socket.on("matchmakingStatus", (data) => {
+            mmStatus.textContent = data.message || data.status;
+
+            if (data.status === "waiting") {
+              mmCancel.classList.remove("hidden");
+              findOpponentBtn.disabled = true;
+            } else if (data.status === "matched") {
+              mmCancel.classList.add("hidden");
+            } else if (data.status === "cancelled") {
+              mmCancel.classList.add("hidden");
+              findOpponentBtn.disabled = false;
+            }
+          });
+
+          // Match found
+          socket.on("matchFound", (matchData) => {
+            mmState.socketMatchId = matchData.matchId;
+            mmState.player1 = matchData.player1;
+            mmState.player2 = matchData.player2;
+            mmState.stake = matchData.stake;
+            mmStatus.textContent = `Match found! ${short(
+              matchData.player1
+            )} vs ${short(matchData.player2)} • Stake ${matchData.stake} GT`;
+
+            // Only player1 creates the match to avoid race conditions
+            const isPlayer1 =
+              userAddress.toLowerCase() === matchData.player1.toLowerCase();
+            if (isPlayer1) {
+              console.log("🎮 I'm Player 1, creating match on-chain...");
+              createMatchOnChain(matchData);
+            } else {
+              console.log("🎯 I'm Player 2, waiting for match creation...");
+              mmStatus.textContent = `Match found! Waiting for match creation...`;
+            }
+          });
+
+          // Match created on blockchain - Player 2 can now stake
+          socket.on("matchCreatedOnChain", async (data) => {
+            if (data.matchId !== mmState.socketMatchId) return;
+
+            const isPlayer2 =
+              userAddress.toLowerCase() === mmState.player2.toLowerCase();
+            if (isPlayer2) {
+              console.log(
+                "✅ Match created on-chain, now staking as Player 2..."
+              );
+              mmState.blockchainMatchId = data.blockchainMatchId;
+
+              try {
+                mmStatus.textContent = `Match created! Now staking ${mmState.stake} GT...`;
+
+                // Approve and stake GT tokens
+                const amountWei = ethers.parseUnits(String(mmState.stake), 18);
+
+                // 1) Approve spending
+                console.log("🔐 Approving GT tokens...");
+                const approveTx = await contracts.gameToken.approve(
+                  CONFIG.contracts.PLAY_GAME,
+                  amountWei
+                );
+                await approveTx.wait();
+                console.log("✅ GT tokens approved");
+
+                // 2) Stake in the match
+                console.log("🎯 Staking in match...");
+                const stakeTx = await contracts.playGame.stake(
+                  data.blockchainMatchId
+                );
+                await stakeTx.wait();
+                console.log("✅ Staking successful");
+
+                mmStatus.textContent = `✅ Staked ${mmState.stake} GT! Waiting for game start...`;
+
+                // Notify that we've staked
+                socket.emit("playerStaked", {
+                  matchId: mmState.socketMatchId,
+                  player: userAddress,
+                  blockchainMatchId: data.blockchainMatchId,
+                });
+              } catch (e) {
+                console.error("❌ Player 2 staking failed:", e);
+                mmStatus.textContent = `Failed to stake: ${e.message}`;
+              }
+            }
+          });
+
+          // Game start
+          socket.on("gameStart", ({ matchId, symbol, isFirst }) => {
+            if (matchId !== mmState.socketMatchId) return;
+            mmState.mySymbol = symbol;
+            mmState.isMyTurn = !!isFirst;
+            mmGame.classList.remove("hidden");
+            buildBoard();
+            updateTurnText();
+          });
+
+          // Opponent move
+          socket.on("moveMade", ({ row, col, symbol, nextPlayer }) => {
+            const idx = row * 3 + col;
+            const cell = mmBoard.children[idx];
+            if (cell && !cell.textContent) {
+              cell.textContent = symbol;
+            }
+            mmState.isMyTurn = nextPlayer === mmState.mySymbol;
+            updateTurnText();
+          });
+
+          // Game end
+          socket.on(
+            "gameEnd",
+            async ({ winner, winnerAddress, finalBoard }) => {
+              if (finalBoard) {
+                finalBoard.forEach((v, i) => {
+                  if (v && mmBoard.children[i])
+                    mmBoard.children[i].textContent = v;
+                });
+              }
+              if (winnerAddress) {
+                mmStatus.textContent = `Game over. Winner: ${short(
+                  winnerAddress
+                )}. Submitting result on-chain...`;
+                // Only winner submits result to avoid duplicate submissions
+                if (
+                  winnerAddress.toLowerCase() === userAddress.toLowerCase() &&
+                  mmState.blockchainMatchId
+                ) {
+                  try {
+                    const resp = await fetch(
+                      `${CONFIG.apiBaseUrl}/match/result`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          matchId: mmState.blockchainMatchId,
+                          winner: winnerAddress,
+                        }),
+                      }
+                    );
+                    const data = await resp.json();
+                    if (!resp.ok)
+                      throw new Error(data.error || "Commit failed");
+                    mmStatus.textContent = `Result submitted. Tx: ${short(
+                      data.txHash
+                    )}`;
+                  } catch (e) {
+                    console.error(e);
+                    mmStatus.textContent = `Failed to submit result: ${e.message}`;
+                  }
+                }
+              } else {
+                mmStatus.textContent = "Game ended in a draw.";
+              }
+            }
+          );
+        } catch (err) {
+          console.error("Matchmaking setup failed", err);
+        }
+      }
+
+      function short(addr) {
+        if (!addr) return "";
+        return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+      }
+
+      function buildBoard() {
+        mmBoard.innerHTML = "";
+        for (let i = 0; i < 9; i++) {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-secondary";
+          btn.style.width = "64px";
+          btn.style.height = "64px";
+          btn.style.fontSize = "20px";
+          btn.style.padding = "0";
+          btn.onclick = () => doMove(i);
+          mmBoard.appendChild(btn);
+        }
+      }
+
+      function updateTurnText() {
+        mmTurn.textContent = mmState.isMyTurn ? "Your turn" : "Opponent's turn";
+      }
+
+      async function doMove(index) {
+        if (!mmState.isMyTurn) return;
+        const row = Math.floor(index / 3);
+        const col = index % 3;
+        socket.emit("makeMove", {
+          matchId: mmState.socketMatchId,
+          row,
+          col,
+          symbol: mmState.mySymbol,
+        });
+      }
+
+      async function createMatchOnChain(matchData) {
+        try {
+          console.log("🎮 Creating match on-chain:", matchData);
+
+          // Create match on-chain via backend (uses operator wallet)
+          const resp = await fetch(`${CONFIG.apiBaseUrl}/match/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              p1: matchData.player1,
+              p2: matchData.player2,
+              stake: matchData.stake,
+              matchId: matchData.matchId,
+            }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || "Failed to create match");
+
+          mmState.blockchainMatchId = data.matchId;
+          console.log("✅ Match created on-chain:", data.matchId);
+
+          // Now both players need to stake in this match
+          mmStatus.textContent = `Match created! Now staking ${matchData.stake} GT...`;
+
+          // Approve and stake GT tokens
+          const amountWei = ethers.parseUnits(String(matchData.stake), 18);
+
+          // 1) Approve spending
+          console.log("🔐 Approving GT tokens...");
+          const approveTx = await contracts.gameToken.approve(
+            CONFIG.contracts.PLAY_GAME,
+            amountWei
+          );
+          await approveTx.wait();
+          console.log("✅ GT tokens approved");
+
+          // 2) Stake in the actual match
+          console.log("🎯 Staking in match...");
+          const stakeTx = await contracts.playGame.stake(data.matchId);
+          await stakeTx.wait();
+          console.log("✅ Staking successful");
+
+          mmStatus.textContent = `✅ Staked ${matchData.stake} GT! Waiting for opponent...`;
+
+          // Notify matchmaking server that match is created and Player 1 has staked
+          socket.emit("matchCreated", {
+            matchId: matchData.matchId,
+            player1: matchData.player1,
+            player2: matchData.player2,
+            stake: matchData.stake,
+            blockchainMatchId: data.matchId,
+            playerStaked: userAddress,
+          });
+
+          // Also emit specific event for Player 2 to stake
+          socket.emit("notifyPlayer2", {
+            matchId: matchData.matchId,
+            blockchainMatchId: data.matchId,
+            createdBy: userAddress,
+          });
+        } catch (e) {
+          console.error("❌ Match creation/staking failed:", e);
+          mmStatus.textContent = `Failed to create/stake in match: ${e.message}`;
+        }
+      }
+
+      findOpponentBtn.onclick = async () => {
+        if (!socket) return;
+        const stake = parseFloat(mmStake.value);
+        if (!stake || stake <= 0) {
+          mmStatus.textContent = "Enter a valid stake amount";
+          return;
+        }
+
+        try {
+          // For now, skip pre-staking and go directly to matchmaking
+          // The actual staking will happen when both players are matched
+          console.log("🔍 Starting matchmaking without pre-staking...");
+
+          // Check if user has enough GT tokens first
+          const amountWei = ethers.parseUnits(String(stake), 18);
+          const gtBalance = await contracts.gameToken.balanceOf(userAddress);
+
+          if (gtBalance < amountWei) {
+            mmStatus.textContent = `❌ Insufficient GT balance. You have ${ethers.formatEther(
+              gtBalance
+            )} GT, need ${stake} GT.`;
+            return;
+          }
+
+          // Notify matchmaking server to find a match
+          socket.emit("findMatch", {
+            address: userAddress,
+            stake: parseInt(stake),
+          });
+
+          mmState.stake = stake;
+          mmStatus.textContent = "Searching for opponent...";
+          findOpponentBtn.disabled = true;
+        } catch (e) {
+          console.error(e);
+          mmStatus.textContent = `Failed to start matchmaking: ${e.message}`;
+        }
+      };
+
+      // Cancel matchmaking button
+      document.getElementById("cancelMatchmakingBtn").onclick = async () => {
+        if (!socket) return;
+
+        try {
+          socket.emit("cancelMatchmaking", { address: userAddress });
+          mmStatus.textContent = "Matchmaking cancelled.";
+          findOpponentBtn.disabled = false;
+          mmCancel.classList.add("hidden");
+        } catch (e) {
+          console.error(e);
+          mmStatus.textContent = `Failed to cancel: ${e.message}`;
         }
       };
 
@@ -1097,7 +1569,7 @@
           console.log("Sending request:", requestBody);
 
           const response = await fetch(
-            `http://localhost:3000/match/start?t=${Date.now()}`,
+            `${CONFIG.apiBaseUrl}/match/start?t=${Date.now()}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1819,7 +2291,7 @@
           declareResultBtn.innerHTML =
             '<div class="spinner"></div><span>Declaring...</span>';
 
-          const response = await fetch("http://localhost:3000/match/result", {
+          const response = await fetch(`${CONFIG.apiBaseUrl}/match/result`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
