@@ -242,29 +242,50 @@ app.post('/faucet/usdt', async (req, res) => {
 // Create match and coordinate stake flow
 app.post('/match/start', async (req, res) => {
     try {
-        const { matchId, p1, p2, stake } = req.body;
+        console.log('Received match creation request:', req.body);
+        const { p1, p2, stake, matchId } = req.body;
 
-        if (!matchId || !p1 || !p2 || !stake) {
-            return res.status(400).json({ error: 'Missing required parameters: matchId, p1, p2, stake' });
+        console.log('Extracted parameters:', { p1, p2, stake, matchId });
+
+        if (!p1 || !p2 || !stake) {
+            console.log('Missing parameters detected:', {
+                p1Missing: !p1,
+                p2Missing: !p2,
+                stakeMissing: !stake
+            });
+            return res.status(400).json({ error: 'Missing required parameters: p1, p2, stake' });
         }
 
-        // Generate bytes32 matchId from string
-        const matchIdBytes32 = ethers.keccak256(ethers.toUtf8Bytes(matchId));
+        // Generate unique matchId using p1, p2, and timestamp (as specified)
+        const timestamp = Math.floor(Date.now() / 1000);
+        const uniqueMatchId = matchId || `match_${p1.slice(-6)}_${p2.slice(-6)}_${timestamp}`;
+
+        // Generate bytes32 matchId using keccak256(abi.encodePacked(p1, p2, timestamp))
+        const matchIdBytes32 = ethers.keccak256(
+            ethers.solidityPacked(['address', 'address', 'uint256'], [p1, p2, timestamp])
+        );
+
         const stakeAmount = ethers.parseEther(stake.toString());
 
         // Call createMatch on the contract
         const tx = await contracts.playGame.createMatch(matchIdBytes32, p1, p2, stakeAmount);
         await tx.wait();
 
+        console.log(`✅ Match created: ${uniqueMatchId} (${matchIdBytes32})`);
+        console.log(`   Players: ${p1} vs ${p2}`);
+        console.log(`   Stake: ${stake} GT each`);
+
         res.json({
             success: true,
             txHash: tx.hash,
             matchId: matchIdBytes32,
-            matchIdString: matchId,
+            matchIdString: uniqueMatchId,
             players: [p1, p2],
-            stake: stake
+            stake: stake,
+            timestamp
         });
     } catch (error) {
+        console.error('Match creation error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -285,7 +306,7 @@ app.post('/match/stake', async (req, res) => {
     }
 });
 
-// Submit match result - calls commitResult
+// Submit match result - calls commitResult (Backend/Operator only)
 app.post('/match/result', async (req, res) => {
     try {
         const { matchId, winner } = req.body;
@@ -299,17 +320,55 @@ app.post('/match/result', async (req, res) => {
             ? ethers.keccak256(ethers.toUtf8Bytes(matchId))
             : matchId;
 
+        console.log(`🎮 Submitting match result:`);
+        console.log(`   Match ID: ${matchId} (${matchIdBytes32})`);
+        console.log(`   Winner: ${winner}`);
+
         // Call commitResult on the smart contract
         const tx = await contracts.playGame.commitResult(matchIdBytes32, winner);
         await tx.wait();
+
+        console.log(`✅ Match result submitted! Winner gets 2x stake.`);
 
         res.json({
             success: true,
             txHash: tx.hash,
             matchId: matchIdBytes32,
-            winner
+            winner,
+            message: `Winner ${winner} receives 2x stake amount`
         });
     } catch (error) {
+        console.error('Error submitting match result:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get matches for a specific player (pending stakes)
+app.get('/matches/for-player/:address', async (req, res) => {
+    try {
+        const { address } = req.params;
+
+        if (!address) {
+            return res.status(400).json({ error: 'Player address required' });
+        }
+
+        // This would typically query a database or event logs
+        // For now, return a sample response structure
+        const pendingMatches = [];
+
+        // In a real implementation, you'd query event logs:
+        // - Filter MatchCreated events where p1 or p2 == address
+        // - Check match status to see if player has staked
+        // - Return matches where status is WAITING_FOR_STAKES
+
+        res.json({
+            success: true,
+            player: address,
+            pendingMatches,
+            message: "Use event listeners to populate real match data"
+        });
+    } catch (error) {
+        console.error('Error fetching player matches:', error);
         res.status(500).json({ error: error.message });
     }
 });

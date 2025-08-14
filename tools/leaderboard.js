@@ -165,21 +165,8 @@ function startEventListeners() {
         }
     });
 
-    // Listen to match cancellation events
-    contracts.playGame.on('MatchCancelled', (matchId, player1, player2) => {
-        const event = {
-            type: 'Cancelled',
-            matchId: matchId.toString(),
-            player1,
-            player2,
-            timestamp: new Date().toISOString(),
-            txHash: 'pending'
-        };
-
-        events.unshift(event);
-
-        console.log('❌ Match Cancelled:', event);
-    });
+    // Note: MatchCancelled event doesn't exist in current contract
+    // Removed to prevent service crash
 
     // Listen to refund events
     contracts.playGame.on('Refunded', (matchId, player, amount) => {
