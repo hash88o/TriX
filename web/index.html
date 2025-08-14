@@ -233,23 +233,21 @@
 
           <div class="form-group">
             <label class="form-label" for="resultMatchId">Match ID</label>
-            <div style="display: flex; gap: 10px; align-items: center">
-              <input
-                class="form-input"
-                type="text"
-                id="resultMatchId"
-                placeholder="Enter full match ID (0x...)"
-                style="flex: 1"
-              />
-              <button
-                type="button"
-                id="refreshMatchBtn"
-                class="btn btn-secondary"
-                style="white-space: nowrap; padding: 8px 12px"
-              >
-                🔄 Refresh
-              </button>
-            </div>
+            <input
+              class="form-input"
+              type="text"
+              id="resultMatchId"
+              placeholder="Enter full match ID (0x...)"
+              style="width: 100%; margin-bottom: 10px"
+            />
+            <button
+              type="button"
+              id="refreshMatchBtn"
+              class="btn btn-secondary"
+              style="width: 100%; padding: 10px"
+            >
+              🔄 Refresh Match Data
+            </button>
           </div>
 
           <div class="form-group">
@@ -693,6 +691,9 @@
           console.log("💰 Updating balances...");
           await updateBalances();
 
+          // Start auto-refresh for balances
+          startBalanceAutoRefresh();
+
           // Enable buttons
           buyBtn.disabled = false;
           createMatchBtn.disabled = false;
@@ -737,30 +738,64 @@
 
           // Update detailed view
           balanceDetails.innerHTML = `
-                        <div class="balance-grid">
-                          <div class="balance-row">
-                            <span class="balance-row-label">💎 ETH</span>
-                            <span class="balance-row-value">${ethBalance.textContent}</span>
-                          </div>
-                          <div class="balance-row">
-                            <span class="balance-row-label">🎮 Game Tokens</span>
-                            <span class="balance-row-value">${gtBalance.textContent} GT</span>
-                          </div>
-                          <div class="balance-row">
-                            <span class="balance-row-label">💰 USDT</span>
-                            <span class="balance-row-value">${usdtBalance.textContent} USDT</span>
-                          </div>
-                          <div class="balance-row">
-                            <span class="balance-row-label">🔗 Network</span>
-                            <span class="balance-row-value">Localhost</span>
-                          </div>
-                        </div>
-                        <div class="address-display">
-                          <strong>Address:</strong><br>${userAddress}
-                        </div>
+                                  <div class="balance-grid">
+            <div class="balance-row">
+              <span class="balance-row-label">💎 ETH</span>
+              <span class="balance-row-value">${ethBalance.textContent}</span>
+            </div>
+            <div class="balance-row">
+              <span class="balance-row-label">🎮 Game Tokens</span>
+              <span class="balance-row-value">${gtBalance.textContent} GT</span>
+            </div>
+            <div class="balance-row">
+              <span class="balance-row-label">💰 USDT</span>
+              <span class="balance-row-value">${usdtBalance.textContent} USDT</span>
+            </div>
+            <div class="balance-row">
+              <span class="balance-row-label">🔗 Network</span>
+              <span class="balance-row-value">Localhost</span>
+            </div>
+          </div>
+          <div class="address-display">
+            <strong>Address:</strong><br>${userAddress}
+          </div>
+          <div style="margin-top: 10px; text-align: center;">
+            <button 
+              type="button" 
+              onclick="updateBalances()" 
+              class="btn btn-secondary"
+              style="font-size: 0.8rem; padding: 5px 10px;"
+            >
+              🔄 Refresh Balances
+            </button>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 5px;">
+              ⚡ Auto-refresh every 5 seconds
+            </div>
+          </div>
                       `;
         } catch (error) {
           console.error("Balance update failed:", error);
+        }
+      }
+
+      // Auto-refresh balances periodically
+      let balanceRefreshInterval;
+      function startBalanceAutoRefresh() {
+        if (balanceRefreshInterval) {
+          clearInterval(balanceRefreshInterval);
+        }
+        // Refresh balances every 5 seconds when connected
+        balanceRefreshInterval = setInterval(async () => {
+          if (isConnected && userAddress) {
+            await updateBalances();
+          }
+        }, 5000);
+      }
+
+      function stopBalanceAutoRefresh() {
+        if (balanceRefreshInterval) {
+          clearInterval(balanceRefreshInterval);
+          balanceRefreshInterval = null;
         }
       }
 
@@ -1767,6 +1802,9 @@
           player1Label.textContent = "Player 1: Enter match ID to load";
           player2Label.textContent = "Player 2: Enter match ID to load";
           declareResultBtn.innerHTML = "<span>🏆 Announce Winner</span>";
+
+          // Update balances immediately after result declaration
+          await updateBalances();
 
           showStatus("🎉 Match result declared successfully!", "success");
           addEvent(
