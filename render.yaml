@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: trix-api
+    env: node
+    buildCommand: npm install
+    startCommand: node api/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: RPC_URL
+        sync: false
+      - key: PRIVATE_KEY
+        sync: false
+      - key: GAMETOKEN_ADDR
+        sync: false
+      - key: TOKENSTORE_ADDR
+        sync: false
+      - key: PLAYGAME_ADDR
+        sync: false
+      - key: MOCKUSDT_ADDR
+        sync: false
+
+  - type: web
+    name: trix-leaderboard
+    env: node
+    buildCommand: npm install
+    startCommand: node tools/leaderboard.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LEADERBOARD_PORT
+        value: 3001
+      - key: RPC_URL
+        sync: false
+      - key: GAMETOKEN_ADDR
+        sync: false
+      - key: TOKENSTORE_ADDR
+        sync: false
+      - key: PLAYGAME_ADDR
+        sync: false

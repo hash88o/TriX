@@ -452,7 +452,7 @@
 
           // Check backend status
           console.log("🔍 Checking backend status...");
-          const response = await fetch("http://localhost:3000/health");
+          const response = await fetch("https://trix-api.onrender.com/health");
           CONFIG = await response.json();
           console.log("✅ Configuration loaded:", CONFIG.contracts);
 
@@ -1097,7 +1097,7 @@
           console.log("Sending request:", requestBody);
 
           const response = await fetch(
-            `http://localhost:3000/match/start?t=${Date.now()}`,
+            `https://trix-api.onrender.com/match/start?t=${Date.now()}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1819,14 +1819,17 @@
           declareResultBtn.innerHTML =
             '<div class="spinner"></div><span>Declaring...</span>';
 
-          const response = await fetch("http://localhost:3000/match/result", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              matchId: matchIdValue,
-              winner: winnerAddress,
-            }),
-          });
+          const response = await fetch(
+            "https://trix-api.onrender.com/match/result",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                matchId: matchIdValue,
+                winner: winnerAddress,
+              }),
+            }
+          );
 
           const result = await response.json();
           if (!result.success) {
@@ -1898,7 +1901,9 @@
              </div>
            `;
 
-          const response = await fetch("http://localhost:3001/leaderboard");
+          const response = await fetch(
+            "https://trix-leaderboard.onrender.com/leaderboard"
+          );
           const data = await response.json();
           const leaderboard = data.leaderboard || [];
 
