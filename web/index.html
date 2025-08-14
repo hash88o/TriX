@@ -325,6 +325,38 @@
           </div>
         </div>
 
+        <!-- Leaderboard -->
+        <div class="card">
+          <div class="section-header">
+            <span class="icon">🏆</span>
+            <span>Leaderboard</span>
+            <button
+              type="button"
+              onclick="loadLeaderboard()"
+              class="btn btn-secondary"
+              style="margin-left: auto; font-size: 0.8rem; padding: 5px 10px"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+          <div
+            style="
+              font-size: 0.7rem;
+              color: #888;
+              text-align: center;
+              margin-bottom: 10px;
+            "
+          >
+            ⚡ Auto-refresh every 10 seconds
+          </div>
+          <div id="leaderboardList">
+            <div class="event-item">
+              <div class="event-time">Loading leaderboard...</div>
+              <div class="event-content">Click refresh to load</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Account Overview -->
         <div class="card">
           <div class="section-header">
@@ -703,6 +735,12 @@
 
           console.log("🎮 Loading assigned matches...");
           await loadAssignedMatches();
+
+          console.log("🏆 Loading leaderboard...");
+          await loadLeaderboard();
+
+          // Start auto-refresh for leaderboard
+          startLeaderboardAutoRefresh();
 
           console.log("✅ Wallet connection complete!");
           showStatus("✅ Wallet connected successfully!", "success");
@@ -1833,9 +1871,9 @@
         const eventItem = document.createElement("div");
         eventItem.className = "event-item";
         eventItem.innerHTML = `
-                      <div class="event-time">${new Date().toLocaleTimeString()}</div>
-                      <div class="event-content">${eventText}</div>
-                    `;
+                       <div class="event-time">${new Date().toLocaleTimeString()}</div>
+                       <div class="event-content">${eventText}</div>
+                     `;
 
         if (eventsList.firstChild?.textContent?.includes("Waiting")) {
           eventsList.innerHTML = "";
@@ -1846,6 +1884,113 @@
         // Keep last 15 events
         while (eventsList.children.length > 15) {
           eventsList.removeChild(eventsList.lastChild);
+        }
+      }
+
+      // Load leaderboard
+      async function loadLeaderboard() {
+        try {
+          const leaderboardList = document.getElementById("leaderboardList");
+          leaderboardList.innerHTML = `
+             <div class="event-item">
+               <div class="event-time">Loading...</div>
+               <div class="event-content">Fetching leaderboard data</div>
+             </div>
+           `;
+
+          const response = await fetch("http://localhost:3001/leaderboard");
+          const data = await response.json();
+          const leaderboard = data.leaderboard || [];
+
+          if (leaderboard.length === 0) {
+            leaderboardList.innerHTML = `
+               <div class="event-item">
+                 <div class="event-time">No data</div>
+                 <div class="event-content">No leaderboard data available yet</div>
+               </div>
+             `;
+            return;
+          }
+
+          leaderboardList.innerHTML = "";
+
+          leaderboard.forEach((entry, index) => {
+            const rank = index + 1;
+            const rankIcon =
+              rank === 1
+                ? "🥇"
+                : rank === 2
+                ? "🥈"
+                : rank === 3
+                ? "🥉"
+                : `#${rank}`;
+
+            const leaderboardItem = document.createElement("div");
+            leaderboardItem.className = "event-item";
+            leaderboardItem.innerHTML = `
+                <div class="event-time">${rankIcon} ${entry.address.slice(
+              0,
+              6
+            )}...${entry.address.slice(-4)}</div>
+                <div class="event-content">
+                  <div style="margin-bottom: 0.5rem;">
+                    <strong>Wins:</strong> ${
+                      entry.wins
+                    } • <strong>Total GT Won:</strong> ${entry.gtWon} GT
+                  </div>
+                  <div style="font-size: 0.8rem; color: var(--text-muted);">
+                    <strong>Matches Played:</strong> ${
+                      entry.totalMatches
+                    } • <strong>Win Rate:</strong> ${entry.winRate}%
+                  </div>
+                </div>
+              `;
+
+            leaderboardList.appendChild(leaderboardItem);
+          });
+        } catch (error) {
+          console.error("Error loading leaderboard:", error);
+          const leaderboardList = document.getElementById("leaderboardList");
+
+          if (error.message.includes("fetch")) {
+            leaderboardList.innerHTML = `
+               <div class="event-item">
+                 <div class="event-time">Service Unavailable</div>
+                 <div class="event-content">
+                   Leaderboard service not running. Please start the leaderboard service:<br>
+                   <code>node tools/leaderboard.js</code>
+                 </div>
+               </div>
+             `;
+          } else {
+            leaderboardList.innerHTML = `
+               <div class="event-item">
+                 <div class="event-time">Error</div>
+                 <div class="event-content">Failed to load leaderboard: ${error.message}</div>
+               </div>
+             `;
+          }
+        }
+      }
+
+      // Auto-refresh leaderboard periodically
+      let leaderboardRefreshInterval;
+      function startLeaderboardAutoRefresh() {
+        if (leaderboardRefreshInterval) {
+          clearInterval(leaderboardRefreshInterval);
+        }
+        // Refresh leaderboard every 10 seconds when connected
+        leaderboardRefreshInterval = setInterval(async () => {
+          if (isConnected && userAddress) {
+            await loadLeaderboard();
+          }
+        }, 10000);
+      }
+
+      function stopLeaderboardAutoRefresh() {
+        if (leaderboardRefreshInterval) {
+          clearInterval(leaderboardRefreshInterval);
+          leaderboardRefreshInterval = null;
         }
       }
 

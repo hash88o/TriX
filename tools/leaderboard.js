@@ -69,7 +69,10 @@ async function initialize() {
 
         console.log('🎮 Contracts initialized');
 
-        // Start event listeners
+        // Load historical events first
+        await loadHistoricalEvents();
+
+        // Start event listeners for new events
         startEventListeners();
 
         console.log('👂 Event listeners started');
@@ -78,6 +81,137 @@ async function initialize() {
     } catch (error) {
         console.error('❌ Initialization failed:', error.message);
         throw error;
+    }
+}
+
+// Load historical events from blockchain
+async function loadHistoricalEvents() {
+    try {
+        console.log('📚 Loading historical events...');
+
+        // Get current block number
+        const currentBlock = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 1000); // Last 1000 blocks
+
+        console.log(`🔍 Scanning blocks ${fromBlock} to ${currentBlock} for events...`);
+
+        // Load historical Purchase events
+        const purchaseEvents = await contracts.tokenStore.queryFilter('Purchase', fromBlock, currentBlock);
+        console.log(`💰 Found ${purchaseEvents.length} historical purchase events`);
+
+        for (const event of purchaseEvents) {
+            try {
+                const { buyer, usdtAmount, gtOut } = event.args;
+
+                // Skip if any required values are missing
+                if (!buyer || !usdtAmount || !gtOut) {
+                    console.log('⚠️ Skipping purchase event with missing data:', event);
+                    continue;
+                }
+
+                const purchaseEvent = {
+                    type: 'Purchase',
+                    buyer,
+                    usdtAmount: ethers.formatUnits(usdtAmount, 6),
+                    gtAmount: ethers.formatEther(gtOut),
+                    timestamp: new Date().toISOString(),
+                    txHash: event.transactionHash
+                };
+
+                events.unshift(purchaseEvent);
+                updatePurchaseStats(buyer, parseFloat(purchaseEvent.usdtAmount), parseFloat(purchaseEvent.gtAmount));
+            } catch (error) {
+                console.error('❌ Error processing purchase event:', error);
+            }
+        }
+
+        // Load historical MatchCreated events
+        const matchCreatedEvents = await contracts.playGame.queryFilter('MatchCreated', fromBlock, currentBlock);
+        console.log(`🎮 Found ${matchCreatedEvents.length} historical match creation events`);
+
+        for (const event of matchCreatedEvents) {
+            try {
+                const { matchId, player1, player2, stakeAmount } = event.args;
+
+                // Skip if any required values are missing
+                if (!matchId || !player1 || !player2 || !stakeAmount) {
+                    console.log('⚠️ Skipping match creation event with missing data:', event);
+                    continue;
+                }
+
+                const matchEvent = {
+                    type: 'MatchCreated',
+                    matchId: matchId.toString(),
+                    player1,
+                    player2,
+                    stakeAmount: ethers.formatEther(stakeAmount),
+                    timestamp: new Date().toISOString(),
+                    txHash: event.transactionHash
+                };
+
+                events.unshift(matchEvent);
+                initializePlayerStats(player1);
+                initializePlayerStats(player2);
+            } catch (error) {
+                console.error('❌ Error processing match creation event:', error);
+            }
+        }
+
+        // Load historical Staked events
+        const stakedEvents = await contracts.playGame.queryFilter('Staked', fromBlock, currentBlock);
+        console.log(`💰 Found ${stakedEvents.length} historical staking events`);
+
+        for (const event of stakedEvents) {
+            const { matchId, player, amount } = event.args;
+            const stakedEvent = {
+                type: 'Staked',
+                matchId: matchId.toString(),
+                player,
+                amount: ethers.formatEther(amount),
+                timestamp: new Date().toISOString(),
+                txHash: event.transactionHash
+            };
+
+            events.unshift(stakedEvent);
+            initializePlayerStats(player);
+        }
+
+        // Load historical Settled events
+        const settledEvents = await contracts.playGame.queryFilter('Settled', fromBlock, currentBlock);
+        console.log(`🏆 Found ${settledEvents.length} historical settlement events`);
+
+        for (const event of settledEvents) {
+            const { matchId, winner, payout } = event.args;
+            try {
+                // Get match details to find the loser
+                const match = await contracts.playGame.getMatch(matchId);
+                const loser = winner.toLowerCase() === match[1].toLowerCase() ? match[2] : match[1];
+                const stakeAmount = parseFloat(ethers.formatEther(match[3]));
+                const winnerPayout = parseFloat(ethers.formatEther(payout));
+
+                const settledEvent = {
+                    type: 'Settled',
+                    matchId: matchId.toString(),
+                    winner,
+                    loser,
+                    stakeAmount,
+                    payout: winnerPayout,
+                    timestamp: new Date().toISOString(),
+                    txHash: event.transactionHash
+                };
+
+                events.unshift(settledEvent);
+                updatePlayerStats(winner, loser, stakeAmount, winnerPayout);
+            } catch (error) {
+                console.error(`Error processing historical settlement for match ${matchId}:`, error);
+            }
+        }
+
+        console.log(`✅ Loaded ${events.length} historical events total`);
+        console.log(`📊 Player stats initialized for ${Object.keys(playerStats).length} players`);
+
+    } catch (error) {
+        console.error('❌ Error loading historical events:', error);
     }
 }
 
