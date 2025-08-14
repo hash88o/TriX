@@ -316,9 +316,20 @@ app.post('/match/result', async (req, res) => {
         }
 
         // Convert matchId to bytes32 if it's a string
-        const matchIdBytes32 = typeof matchId === 'string' && !matchId.startsWith('0x')
-            ? ethers.keccak256(ethers.toUtf8Bytes(matchId))
-            : matchId;
+        let matchIdBytes32;
+        if (typeof matchId === 'string') {
+            if (matchId.startsWith('0x') && matchId.length === 66) {
+                // It's already a valid bytes32 hex string
+                matchIdBytes32 = matchId;
+            } else {
+                // Convert string to bytes32 using solidityPacked
+                matchIdBytes32 = ethers.keccak256(
+                    ethers.solidityPacked(['string'], [matchId])
+                );
+            }
+        } else {
+            matchIdBytes32 = matchId;
+        }
 
         console.log(`🎮 Submitting match result:`);
         console.log(`   Match ID: ${matchId} (${matchIdBytes32})`);

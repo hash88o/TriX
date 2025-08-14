@@ -233,12 +233,23 @@
 
           <div class="form-group">
             <label class="form-label" for="resultMatchId">Match ID</label>
-            <input
-              class="form-input"
-              type="text"
-              id="resultMatchId"
-              placeholder="Enter full match ID (0x...)"
-            />
+            <div style="display: flex; gap: 10px; align-items: center">
+              <input
+                class="form-input"
+                type="text"
+                id="resultMatchId"
+                placeholder="Enter full match ID (0x...)"
+                style="flex: 1"
+              />
+              <button
+                type="button"
+                id="refreshMatchBtn"
+                class="btn btn-secondary"
+                style="white-space: nowrap; padding: 8px 12px"
+              >
+                🔄 Refresh
+              </button>
+            </div>
           </div>
 
           <div class="form-group">
@@ -263,7 +274,7 @@
                   type="radio"
                   name="winner"
                   id="player1Winner"
-                  value="player1"
+                  value=""
                   style="margin: 0"
                 />
                 <span id="player1Label"
@@ -282,7 +293,7 @@
                   type="radio"
                   name="winner"
                   id="player2Winner"
-                  value="player2"
+                  value=""
                   style="margin: 0"
                 />
                 <span id="player2Label"
@@ -726,28 +737,28 @@
 
           // Update detailed view
           balanceDetails.innerHTML = `
-                  <div class="balance-grid">
-                    <div class="balance-row">
-                      <span class="balance-row-label">💎 ETH</span>
-                      <span class="balance-row-value">${ethBalance.textContent}</span>
-                    </div>
-                    <div class="balance-row">
-                      <span class="balance-row-label">🎮 Game Tokens</span>
-                      <span class="balance-row-value">${gtBalance.textContent} GT</span>
-                    </div>
-                    <div class="balance-row">
-                      <span class="balance-row-label">💰 USDT</span>
-                      <span class="balance-row-value">${usdtBalance.textContent} USDT</span>
-                    </div>
-                    <div class="balance-row">
-                      <span class="balance-row-label">🔗 Network</span>
-                      <span class="balance-row-value">Localhost</span>
-                    </div>
-                  </div>
-                  <div class="address-display">
-                    <strong>Address:</strong><br>${userAddress}
-                  </div>
-                `;
+                        <div class="balance-grid">
+                          <div class="balance-row">
+                            <span class="balance-row-label">💎 ETH</span>
+                            <span class="balance-row-value">${ethBalance.textContent}</span>
+                          </div>
+                          <div class="balance-row">
+                            <span class="balance-row-label">🎮 Game Tokens</span>
+                            <span class="balance-row-value">${gtBalance.textContent} GT</span>
+                          </div>
+                          <div class="balance-row">
+                            <span class="balance-row-label">💰 USDT</span>
+                            <span class="balance-row-value">${usdtBalance.textContent} USDT</span>
+                          </div>
+                          <div class="balance-row">
+                            <span class="balance-row-label">🔗 Network</span>
+                            <span class="balance-row-value">Localhost</span>
+                          </div>
+                        </div>
+                        <div class="address-display">
+                          <strong>Address:</strong><br>${userAddress}
+                        </div>
+                      `;
         } catch (error) {
           console.error("Balance update failed:", error);
         }
@@ -1137,18 +1148,36 @@
               ) {
                 console.log("Found assigned match:", matchId.toString());
 
-                // For now, display matches based on events (avoid getMatch calls that are failing)
-                // TODO: Fix getMatch calls by ensuring blockchain state consistency
-                assignedMatches.set(matchId.toString(), {
-                  matchId: matchId.toString(),
-                  matchIdString: `match_${Date.now()}`, // Generate readable ID
-                  p1,
-                  p2,
-                  stake: ethers.formatEther(stake),
-                  status: 0, // Assume CREATED status from event
-                  p1Staked: false, // Will be updated when staking events are processed
-                  p2Staked: false, // Will be updated when staking events are processed
-                });
+                // Get actual match status from blockchain
+                try {
+                  const matchData = await contracts.playGame.getMatch(matchId);
+                  console.log("Match data from blockchain:", matchData);
+
+                  assignedMatches.set(matchId.toString(), {
+                    matchId: matchId.toString(),
+                    matchIdString: `match_${Date.now()}`, // Generate readable ID
+                    p1,
+                    p2,
+                    stake: ethers.formatEther(stake),
+                    status: matchData[4], // MatchStatus enum
+                    p1Staked: matchData[6], // p1Staked boolean
+                    p2Staked: matchData[7], // p2Staked boolean
+                    startTime: matchData[5], // startTime
+                  });
+                } catch (matchError) {
+                  console.error("Error fetching match data:", matchError);
+                  // Fallback to event data only
+                  assignedMatches.set(matchId.toString(), {
+                    matchId: matchId.toString(),
+                    matchIdString: `match_${Date.now()}`, // Generate readable ID
+                    p1,
+                    p2,
+                    stake: ethers.formatEther(stake),
+                    status: 0, // Assume CREATED status from event
+                    p1Staked: false, // Will be updated when staking events are processed
+                    p2Staked: false, // Will be updated when staking events are processed
+                  });
+                }
               }
             }
           } catch (eventError) {
@@ -1167,11 +1196,11 @@
       function refreshMatchesList() {
         if (assignedMatches.size === 0) {
           myMatchesList.innerHTML = `
-                  <div class="event-item">
-                    <div class="event-time">No matches found</div>
-                    <div class="event-content">Create a match or wait to be assigned to one</div>
-                              </div>
-                          `;
+                        <div class="event-item">
+                          <div class="event-time">No matches found</div>
+                          <div class="event-content">Create a match or wait to be assigned to one</div>
+                                    </div>
+                                `;
           return;
         }
 
@@ -1210,12 +1239,12 @@
 
         const statusText =
           p1Staked && p2Staked
-            ? "Both Staked ✅"
+            ? "🎉 Both Staked - Ready!"
             : p1Staked
-            ? "P1 Staked ⏳"
+            ? "⏳ Player 1 Staked - Waiting for Player 2"
             : p2Staked
-            ? "P2 Staked ⏳"
-            : "Waiting for Stakes ⏳";
+            ? "⏳ Player 2 Staked - Waiting for Player 1"
+            : "⏳ Waiting for Both Players to Stake";
 
         const role =
           userAddress.toLowerCase() === p1.toLowerCase()
@@ -1224,25 +1253,36 @@
         const myStakeStatus =
           (userAddress.toLowerCase() === p1.toLowerCase() && p1Staked) ||
           (userAddress.toLowerCase() === p2.toLowerCase() && p2Staked)
-            ? "✅ Staked"
-            : "❌ Need to Stake";
+            ? "✅ You Staked"
+            : "❌ You Need to Stake";
+
+        // Show opponent's staking status
+        const opponentStaked =
+          (userAddress.toLowerCase() === p1.toLowerCase() && p2Staked) ||
+          (userAddress.toLowerCase() === p2.toLowerCase() && p1Staked);
+        const opponentStatus = opponentStaked
+          ? "✅ Opponent Staked"
+          : "⏳ Opponent Not Staked";
 
         matchItem.innerHTML = `
-                <div class="event-time">${matchIdString} • ${stake} GT • ${statusText}</div>
-                <div class="event-content">
-                  <div style="margin-bottom: 0.5rem;">Role: ${role} • Status: ${myStakeStatus}</div>
-                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                    vs ${
-                      role === "Player 1"
-                        ? p2.slice(0, 6) + "..." + p2.slice(-4)
-                        : p1.slice(0, 6) + "..." + p1.slice(-4)
-                    }
-                  </div>
-                  <div style="font-size: 0.7rem; color: var(--text-muted); word-break: break-all;">
-                    Match ID: ${matchIdBytes32}
-                  </div>
-                </div>
-              `;
+                      <div class="event-time">${matchIdString} • ${stake} GT • ${statusText}</div>
+                      <div class="event-content">
+                        <div style="margin-bottom: 0.5rem;">
+                          <strong>${role}</strong> • ${myStakeStatus}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                          <div>👤 Opponent: ${
+                            role === "Player 1"
+                              ? p2.slice(0, 6) + "..." + p2.slice(-4)
+                              : p1.slice(0, 6) + "..." + p1.slice(-4)
+                          }</div>
+                          <div>${opponentStatus}</div>
+                        </div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted); word-break: break-all;">
+                          Match ID: ${matchIdBytes32}
+                        </div>
+                      </div>
+                    `;
 
         if (isMyTurn) {
           matchItem.onclick = () => stakeInMatch(matchIdBytes32, stake);
@@ -1507,20 +1547,20 @@
               helpBtn.onclick = () => {
                 alert(`To fix the circuit breaker issue:
 
-1. Open MetaMask
-2. Go to Settings → Networks
-3. Delete "Localhost 8545" network
-4. Add network again with:
-   - Network Name: Localhost 8545
-   - RPC URL: http://127.0.0.1:8545
-   - Chain ID: 1337
-   - Currency Symbol: ETH
+      1. Open MetaMask
+      2. Go to Settings → Networks
+      3. Delete "Localhost 8545" network
+      4. Add network again with:
+         - Network Name: Localhost 8545
+         - RPC URL: http://127.0.0.1:8545
+         - Chain ID: 1337
+         - Currency Symbol: ETH
 
-5. Go to Settings → Advanced
-6. Click "Clear activity and nonce data"
-7. Refresh this page and try again
+      5. Go to Settings → Advanced
+      6. Click "Clear activity and nonce data"
+      7. Refresh this page and try again
 
-If that doesn't work, try using a different browser or incognito mode.`);
+      If that doesn't work, try using a different browser or incognito mode.`);
               };
               const statusMessage = document.querySelector(".status-message");
               if (statusMessage) {
@@ -1596,7 +1636,7 @@ If that doesn't work, try using a different browser or incognito mode.`);
       };
 
       // Load match details for result declaration
-      resultMatchId.oninput = async () => {
+      async function loadMatchForResult() {
         const matchIdValue = resultMatchId.value.trim();
         if (!matchIdValue || !contracts.playGame) {
           player1Label.textContent = "Player 1: Enter match ID to load";
@@ -1620,11 +1660,19 @@ If that doesn't work, try using a different browser or incognito mode.`);
           }
 
           const match = await contracts.playGame.getMatch(matchIdBytes32);
+          console.log("Match data for result declaration:", match);
 
           const p1Address = match[1];
           const p2Address = match[2];
           const stakeAmount = ethers.formatEther(match[3]);
           const status = match[4]; // 0=WAITING, 1=STAKED, 2=SETTLED, 3=REFUNDED
+
+          console.log("Match details:", {
+            p1Address,
+            p2Address,
+            stakeAmount,
+            status,
+          });
 
           player1Label.textContent = `Player 1: ${p1Address.slice(
             0,
@@ -1635,25 +1683,25 @@ If that doesn't work, try using a different browser or incognito mode.`);
             8
           )}...${p2Address.slice(-6)} (${stakeAmount} GT)`;
 
+          // Always enable radio buttons if we have valid addresses
+          player1Winner.disabled = false;
+          player2Winner.disabled = false;
+          player1Winner.value = p1Address;
+          player2Winner.value = p2Address;
+
+          // Show status based on match state
           if (status === 1) {
             // STAKED - ready for result
-            player1Winner.disabled = false;
-            player2Winner.disabled = false;
-            player1Winner.value = p1Address;
-            player2Winner.value = p2Address;
-          } else {
-            player1Winner.disabled = true;
-            player2Winner.disabled = true;
-            if (status === 0) {
-              showStatus(
-                "⚠️ Match not ready - players still need to stake",
-                "warning"
-              );
-            } else if (status === 2) {
-              showStatus("ℹ️ Match already settled", "warning");
-            } else if (status === 3) {
-              showStatus("ℹ️ Match was refunded", "warning");
-            }
+            showStatus("✅ Match ready for result declaration", "success");
+          } else if (status === 0) {
+            showStatus(
+              "⚠️ Match not ready - players still need to stake",
+              "warning"
+            );
+          } else if (status === 2) {
+            showStatus("ℹ️ Match already settled", "warning");
+          } else if (status === 3) {
+            showStatus("ℹ️ Match was refunded", "warning");
           }
         } catch (error) {
           console.error("Error loading match:", error);
@@ -1661,8 +1709,18 @@ If that doesn't work, try using a different browser or incognito mode.`);
           player2Label.textContent = "Player 2: Error loading match";
           player1Winner.disabled = true;
           player2Winner.disabled = true;
+          showStatus("❌ Error loading match: " + error.message, "error");
         }
-      };
+      }
+
+      // Load match details for result declaration
+      resultMatchId.oninput = loadMatchForResult;
+
+      // Add refresh button functionality
+      const refreshMatchBtn = document.getElementById("refreshMatchBtn");
+      if (refreshMatchBtn) {
+        refreshMatchBtn.onclick = loadMatchForResult;
+      }
 
       // Declare match result
       declareResultBtn.onclick = async () => {
@@ -1737,9 +1795,9 @@ If that doesn't work, try using a different browser or incognito mode.`);
         const eventItem = document.createElement("div");
         eventItem.className = "event-item";
         eventItem.innerHTML = `
-                <div class="event-time">${new Date().toLocaleTimeString()}</div>
-                <div class="event-content">${eventText}</div>
-              `;
+                      <div class="event-time">${new Date().toLocaleTimeString()}</div>
+                      <div class="event-content">${eventText}</div>
+                    `;
 
         if (eventsList.firstChild?.textContent?.includes("Waiting")) {
           eventsList.innerHTML = "";
