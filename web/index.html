@@ -168,6 +168,60 @@
             <div>Player Role: <span id="debugPlayerRole">-</span></div>
             <div>Game Status: <span id="debugGameStatus">-</span></div>
           </div>
+
+          <!-- Etherscan Links -->
+          <div
+            id="etherscanLinks"
+            class="hidden"
+            style="
+              margin-top: 15px;
+              padding: 10px;
+              background: #e3f2fd;
+              border-radius: 5px;
+              font-size: 0.85rem;
+            "
+          >
+            <strong>🔗 Etherscan Links:</strong>
+            <div id="matchCreationLink" style="margin-top: 5px"></div>
+            <div id="player1StakingLink" style="margin-top: 5px"></div>
+            <div id="player2StakingLink" style="margin-top: 5px"></div>
+            <div id="resultSubmissionLink" style="margin-top: 5px"></div>
+            <div
+              id="matchDetailsLink"
+              style="
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid #ccc;
+              "
+            ></div>
+          </div>
+
+          <!-- Debug Actions -->
+          <div
+            id="debugActions"
+            class="hidden"
+            style="
+              margin-top: 15px;
+              padding: 10px;
+              background: #fff3cd;
+              border-radius: 5px;
+              font-size: 0.85rem;
+            "
+          >
+            <strong>🐛 Debug Actions:</strong>
+            <div style="margin-top: 10px">
+              <button
+                id="debugGameStartBtn"
+                class="btn btn-warning btn-sm"
+                style="margin-right: 10px"
+              >
+                🎮 Force Game Start
+              </button>
+              <button id="debugEmitStakedBtn" class="btn btn-info btn-sm">
+                🔔 Re-emit playerStaked
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Create/Stake Match -->
@@ -909,6 +963,43 @@
 
           // Start debug info updates
           setInterval(updateDebugInfo, 2000);
+          setInterval(updateEtherscanLinks, 2000);
+
+          // Setup debug actions
+          const debugActions = document.getElementById("debugActions");
+          const debugGameStartBtn =
+            document.getElementById("debugGameStartBtn");
+          const debugEmitStakedBtn =
+            document.getElementById("debugEmitStakedBtn");
+
+          if (debugActions && debugGameStartBtn && debugEmitStakedBtn) {
+            // Show debug actions when match is found
+            socket.on("matchFound", () => {
+              debugActions.classList.remove("hidden");
+            });
+
+            // Force game start button
+            debugGameStartBtn.onclick = () => {
+              console.log("🐛 Force game start clicked");
+              if (mmState.socketMatchId) {
+                socket.emit("forceGameStart", {
+                  matchId: mmState.socketMatchId,
+                });
+              }
+            };
+
+            // Re-emit playerStaked button
+            debugEmitStakedBtn.onclick = () => {
+              console.log("🐛 Re-emit playerStaked clicked");
+              if (mmState.socketMatchId && mmState.blockchainMatchId) {
+                socket.emit("playerStaked", {
+                  matchId: mmState.socketMatchId,
+                  address: userAddress,
+                  blockchainMatchId: mmState.blockchainMatchId,
+                });
+              }
+            };
+          }
 
           // Enable buttons
           buyBtn.disabled = false;
@@ -949,6 +1040,11 @@
         stake: null,
         mySymbol: null,
         isMyTurn: false,
+        // Transaction hashes for Etherscan links
+        creationTxHash: null,
+        player1StakingTxHash: null,
+        player2StakingTxHash: null,
+        resultTxHash: null,
       };
 
       function setupMatchmaking() {
@@ -1044,7 +1140,12 @@
                   data.blockchainMatchId
                 );
                 await stakeTx.wait();
+                mmState.player2StakingTxHash = stakeTx.hash; // Store Player 2 staking transaction hash
                 console.log("✅ Staking successful");
+                console.log(
+                  "🔗 Player 2 staking transaction hash:",
+                  stakeTx.hash
+                );
 
                 // Display Etherscan links for Player 2 staking
                 const etherscanBase =
@@ -1197,6 +1298,9 @@
                       </div>
                     `;
 
+                    // Store result transaction hash
+                    mmState.resultTxHash = data.txHash;
+
                     // Add to events list
                     addEvent(
                       `🏆 Game won by ${short(
@@ -1282,6 +1386,99 @@
         if (debugGameStatus) debugGameStatus.textContent = gameStatus;
       }
 
+      function updateEtherscanLinks() {
+        const etherscanLinks = document.getElementById("etherscanLinks");
+        const matchCreationLink = document.getElementById("matchCreationLink");
+        const player1StakingLink =
+          document.getElementById("player1StakingLink");
+        const player2StakingLink =
+          document.getElementById("player2StakingLink");
+        const resultSubmissionLink = document.getElementById(
+          "resultSubmissionLink"
+        );
+
+        if (!etherscanLinks) return;
+
+        const etherscanBase =
+          window.location.hostname === "localhost"
+            ? "https://sepolia.etherscan.io"
+            : "https://sepolia.etherscan.io";
+
+        let hasLinks = false;
+
+        // Match Creation Link
+        if (mmState.creationTxHash) {
+          matchCreationLink.innerHTML = `
+            <a href="${etherscanBase}/tx/${
+            mmState.creationTxHash
+          }" target="_blank" style="color: #007bff;">
+              🎮 Match Creation: ${short(mmState.creationTxHash)}
+            </a>
+          `;
+          hasLinks = true;
+        }
+
+        // Player 1 Staking Link
+        if (mmState.player1StakingTxHash) {
+          player1StakingLink.innerHTML = `
+            <a href="${etherscanBase}/tx/${
+            mmState.player1StakingTxHash
+          }" target="_blank" style="color: #007bff;">
+              ⚡ Player 1 Staking: ${short(mmState.player1StakingTxHash)}
+            </a>
+          `;
+          hasLinks = true;
+        }
+
+        // Player 2 Staking Link
+        if (mmState.player2StakingTxHash) {
+          player2StakingLink.innerHTML = `
+            <a href="${etherscanBase}/tx/${
+            mmState.player2StakingTxHash
+          }" target="_blank" style="color: #007bff;">
+              ⚡ Player 2 Staking: ${short(mmState.player2StakingTxHash)}
+            </a>
+          `;
+          hasLinks = true;
+        }
+
+        // Result Submission Link
+        if (mmState.resultTxHash) {
+          resultSubmissionLink.innerHTML = `
+            <a href="${etherscanBase}/tx/${
+            mmState.resultTxHash
+          }" target="_blank" style="color: #007bff;">
+              🎯 Result Submission: ${short(mmState.resultTxHash)}
+            </a>
+          `;
+          hasLinks = true;
+        }
+
+        // Match Details Link (contract interaction)
+        if (mmState.blockchainMatchId) {
+          const matchDetailsLink = document.getElementById("matchDetailsLink");
+          if (matchDetailsLink) {
+            matchDetailsLink.innerHTML = `
+              <a href="${etherscanBase}/address/${
+              CONFIG.contracts.PLAY_GAME
+            }#readContract" target="_blank" style="color: #007bff;">
+                📋 View Match Details on Contract: ${short(
+                  CONFIG.contracts.PLAY_GAME
+                )}
+              </a>
+            `;
+            hasLinks = true;
+          }
+        }
+
+        // Show/hide the section based on whether we have links
+        if (hasLinks) {
+          etherscanLinks.classList.remove("hidden");
+        } else {
+          etherscanLinks.classList.add("hidden");
+        }
+      }
+
       async function doMove(index) {
         if (!mmState.isMyTurn) return;
         const row = Math.floor(index / 3);
@@ -1312,12 +1509,17 @@
           const data = await resp.json();
           if (!resp.ok) throw new Error(data.error || "Failed to create match");
 
+          console.log("🔍 Backend response data:", data);
+          console.log("🔍 Transaction hash from backend:", data.txHash);
+
           // Store the blockchain matchId (converted from WebSocket matchId)
           const blockchainMatchId = ethers.keccak256(
             ethers.solidityPacked(["string"], [data.matchId])
           );
           mmState.blockchainMatchId = blockchainMatchId;
+          mmState.creationTxHash = data.txHash; // Store creation transaction hash
           console.log("✅ Match created on-chain:", blockchainMatchId);
+          console.log("🔗 Creation transaction hash:", data.txHash);
 
           // Now both players need to stake in this match
           mmStatus.textContent = `Match created! Now staking ${matchData.stake} GT...`;
@@ -1339,7 +1541,9 @@
           // Use the already converted blockchainMatchId for staking
           const stakeTx = await contracts.playGame.stake(blockchainMatchId);
           await stakeTx.wait();
+          mmState.player1StakingTxHash = stakeTx.hash; // Store Player 1 staking transaction hash
           console.log("✅ Staking successful");
+          console.log("🔗 Player 1 staking transaction hash:", stakeTx.hash);
 
           // Display Etherscan links for match creation and staking
           const etherscanBase =
@@ -1377,6 +1581,21 @@
             return;
           }
 
+          // CRITICAL: Player 1 must also emit playerStaked event after staking
+          console.log("🔔 Player 1 emitting playerStaked event:", {
+            matchId: matchData.matchId,
+            address: userAddress,
+            blockchainMatchId: blockchainMatchId,
+          });
+
+          socket.emit("playerStaked", {
+            matchId: matchData.matchId,
+            address: userAddress,
+            blockchainMatchId: blockchainMatchId,
+          });
+
+          console.log("✅ Player 1 playerStaked event emitted");
+
           // Notify matchmaking server that match is created and Player 1 has staked
           socket.emit("matchCreated", {
             matchId: matchData.matchId,
@@ -1394,12 +1613,21 @@
             txHash: data.txHash, // Include transaction hash from backend
           });
 
+          // Ensure we have a valid transaction hash
+          if (!data.txHash) {
+            console.warn(
+              "⚠️ No transaction hash received from backend, using fallback"
+            );
+          }
+
           socket.emit("notifyPlayer2", {
             matchId: matchData.matchId,
             blockchainMatchId: blockchainMatchId, // Now this is the correct bytes32 hash
             createdBy: userAddress,
-            txHash: data.txHash, // Include transaction hash for Etherscan links
+            txHash: data.txHash || "pending", // Include transaction hash for Etherscan links
           });
+
+          console.log("✅ All events emitted for Player 1");
         } catch (e) {
           console.error("❌ Match creation/staking failed:", e);
           mmStatus.textContent = `Failed to create/stake in match: ${e.message}`;

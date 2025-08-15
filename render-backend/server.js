@@ -324,6 +324,7 @@ io.on('connection', (socket) => {
             console.log(`🎮 Game start events sent to both players`);
         } else {
             console.log(`⏳ Waiting for other player to stake. P1: ${match.player1Staked}, P2: ${match.player2Staked}`);
+            console.log(`🔍 Current active matches:`, Array.from(activeMatches.entries()));
         }
     });
 
@@ -409,6 +410,39 @@ io.on('connection', (socket) => {
             waitingPlayers.delete(address);
             socket.emit('matchmakingCancelled', { message: "Matchmaking cancelled" });
         }
+    });
+
+    // Debug: Force game start
+    socket.on('forceGameStart', (data) => {
+        const { matchId } = data;
+        const match = activeMatches.get(matchId);
+
+        if (!match) {
+            console.log(`🐛 Force game start requested for non-existent match: ${matchId}`);
+            return;
+        }
+
+        console.log(`🐛 Force game start requested for match: ${matchId}`);
+        console.log(`🐛 Current match state:`, match);
+
+        // Force start the game
+        match.gameActive = true;
+        match.currentPlayer = 'X';
+
+        // Start game
+        io.to(match.player1SocketId).emit('gameStart', {
+            matchId,
+            symbol: 'X',
+            isFirst: true
+        });
+
+        io.to(match.player2SocketId).emit('gameStart', {
+            matchId,
+            symbol: 'O',
+            isFirst: false
+        });
+
+        console.log(`🐛 Game force-started for match ${matchId}`);
     });
 
     // Disconnect handling
