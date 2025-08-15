@@ -91,6 +91,64 @@
           </div>
         </div>
 
+        <!-- Realtime Matchmaking (Demo) -->
+        <div class="card">
+          <div class="section-header">
+            <span class="icon">⚡</span>
+            <span>Realtime Matchmaking (Demo)</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="mmStake">Stake Amount (GT)</label>
+            <input
+              class="form-input"
+              type="number"
+              id="mmStake"
+              placeholder="e.g. 10"
+              step="0.01"
+              min="0"
+            />
+          </div>
+
+          <button id="findOpponentBtn" class="btn btn-primary" disabled>
+            <span>🔍 Find Opponent</span>
+          </button>
+
+          <div id="mmStatus" class="info-text" style="margin-top: 8px">
+            Connect wallet to use matchmaking
+          </div>
+
+          <div id="mmStakeConfirm" class="hidden" style="margin-top: 12px">
+            <button id="confirmStakeBtn" class="btn btn-warning">
+              <span>✅ Approve & Stake</span>
+            </button>
+            <div class="info-text">
+              Approve and stake the GT amount to enter escrow.
+            </div>
+          </div>
+
+          <div id="mmCancel" class="hidden" style="margin-top: 12px">
+            <button id="cancelMatchmakingBtn" class="btn btn-danger">
+              <span>❌ Cancel & Refund</span>
+            </button>
+            <div class="info-text">
+              Cancel matchmaking and get your stake back.
+            </div>
+          </div>
+
+          <div id="mmGame" class="hidden" style="margin-top: 16px">
+            <div id="mmTurn" class="info-text" style="margin-bottom: 8px"></div>
+            <div
+              id="mmBoard"
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 64px);
+                gap: 6px;
+              "
+            ></div>
+          </div>
+        </div>
+
         <!-- Create/Stake Match -->
         <div class="card">
           <div class="section-header">
@@ -167,64 +225,6 @@
             📝 Anyone can create matches for any two players. The assigned
             players will see the match in their "My Matches" section and can
             stake.
-          </div>
-        </div>
-
-        <!-- Realtime Matchmaking (Demo) -->
-        <div class="card">
-          <div class="section-header">
-            <span class="icon">⚡</span>
-            <span>Realtime Matchmaking (Demo)</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="mmStake">Stake Amount (GT)</label>
-            <input
-              class="form-input"
-              type="number"
-              id="mmStake"
-              placeholder="e.g. 10"
-              step="0.01"
-              min="0"
-            />
-          </div>
-
-          <button id="findOpponentBtn" class="btn btn-primary" disabled>
-            <span>🔍 Find Opponent</span>
-          </button>
-
-          <div id="mmStatus" class="info-text" style="margin-top: 8px">
-            Connect wallet to use matchmaking
-          </div>
-
-          <div id="mmStakeConfirm" class="hidden" style="margin-top: 12px">
-            <button id="confirmStakeBtn" class="btn btn-warning">
-              <span>✅ Approve & Stake</span>
-            </button>
-            <div class="info-text">
-              Approve and stake the GT amount to enter escrow.
-            </div>
-          </div>
-
-          <div id="mmCancel" class="hidden" style="margin-top: 12px">
-            <button id="cancelMatchmakingBtn" class="btn btn-danger">
-              <span>❌ Cancel & Refund</span>
-            </button>
-            <div class="info-text">
-              Cancel matchmaking and get your stake back.
-            </div>
-          </div>
-
-          <div id="mmGame" class="hidden" style="margin-top: 16px">
-            <div id="mmTurn" class="info-text" style="margin-bottom: 8px"></div>
-            <div
-              id="mmBoard"
-              style="
-                display: grid;
-                grid-template-columns: repeat(3, 64px);
-                gap: 6px;
-              "
-            ></div>
           </div>
         </div>
       </div>
@@ -475,7 +475,11 @@
         PlayGame: [
           "function createMatch(bytes32,address,address,uint256) external",
           "function stake(bytes32) external",
+          "function commitResult(bytes32,address) external",
+          "function refund(bytes32) external",
           "function getMatch(bytes32) view returns (tuple(bytes32,address,address,uint256,uint8,uint256,bool,bool))",
+          "function canRefund(bytes32) view returns (bool)",
+          "function getStats() view returns (uint256,uint256,uint256)",
         ],
         MockUSDT: [
           "function faucet() external",
@@ -1173,7 +1177,11 @@
 
           // 2) Stake in the actual match
           console.log("🎯 Staking in match...");
-          const stakeTx = await contracts.playGame.stake(data.matchId);
+          // Convert string matchId to bytes32 for contract call
+          const matchIdBytes32 = ethers.keccak256(
+            ethers.solidityPacked(["string"], [data.matchId])
+          );
+          const stakeTx = await contracts.playGame.stake(matchIdBytes32);
           await stakeTx.wait();
           console.log("✅ Staking successful");
 

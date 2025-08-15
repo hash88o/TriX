@@ -157,6 +157,10 @@ app.post("/match/start", async (req, res) => {
             return res.status(400).json({ error: "Missing required parameters" });
         }
 
+        if (!contracts || !contracts.playGame) {
+            return res.status(500).json({ error: "Blockchain contracts not initialized" });
+        }
+
         const tx = await contracts.playGame.createMatch(
             ethers.keccak256(ethers.solidityPacked(["string"], [matchId])),
             p1,
@@ -169,7 +173,8 @@ app.post("/match/start", async (req, res) => {
 
         res.json({
             success: true,
-            matchId: receipt.transactionHash,
+            matchId: matchId, // Return the original matchId, not transaction hash
+            txHash: receipt.transactionHash, // Add transaction hash separately
             message: `Match created successfully! Players: ${p1} vs ${p2}, Stake: ${stake} GT each`,
         });
     } catch (error) {
@@ -184,6 +189,10 @@ app.post("/match/result", async (req, res) => {
 
         if (!matchId || !winner) {
             return res.status(400).json({ error: "Missing matchId or winner" });
+        }
+
+        if (!contracts || !contracts.playGame) {
+            return res.status(500).json({ error: "Blockchain contracts not initialized" });
         }
 
         const tx = await contracts.playGame.commitResult(
