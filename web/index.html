@@ -1342,6 +1342,11 @@
                   mmState.blockchainMatchId
                 ) {
                   try {
+                    console.log(`🏆 Submitting result for match:`, {
+                      blockchainMatchId: mmState.blockchainMatchId,
+                      winner: winnerAddress,
+                    });
+
                     const resp = await fetch(
                       `${CONFIG.apiBaseUrl}/match/result`,
                       {
@@ -1384,8 +1389,33 @@
                       )} - Result submitted on-chain`
                     );
                   } catch (e) {
-                    console.error(e);
-                    mmStatus.textContent = `Failed to submit result: ${e.message}`;
+                    console.error("Result submission error:", e);
+
+                    // Try to get more details from the response
+                    let errorMessage = e.message;
+                    if (e.response) {
+                      try {
+                        const errorData = await e.response.json();
+                        errorMessage = errorData.error || errorMessage;
+                      } catch (parseError) {
+                        console.error(
+                          "Could not parse error response:",
+                          parseError
+                        );
+                      }
+                    }
+
+                    mmStatus.innerHTML = `
+                      <div style="color: #dc3545;">❌ Failed to submit result: ${errorMessage}</div>
+                      <div style="margin-top: 10px; font-size: 0.9rem;">
+                        <strong>Debug Info:</strong><br>
+                        Blockchain Match ID: ${mmState.blockchainMatchId}<br>
+                        Winner: ${winnerAddress}<br>
+                        <button onclick="debugMatch('${mmState.blockchainMatchId}')" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                          🔍 Debug Match on Backend
+                        </button>
+                      </div>
+                    `;
                   }
                 }
               } else {
@@ -1401,6 +1431,44 @@
       function short(addr) {
         if (!addr) return "";
         return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+      }
+
+      // Debug function to check match status on backend
+      async function debugMatch(blockchainMatchId) {
+        try {
+          console.log(`🔍 Debugging match: ${blockchainMatchId}`);
+
+          // Extract the WebSocket matchId from mmState
+          const webSocketMatchId = mmState.socketMatchId;
+          if (!webSocketMatchId) {
+            console.error("No WebSocket matchId found in mmState");
+            return;
+          }
+
+          const resp = await fetch(
+            `${CONFIG.apiBaseUrl}/debug/match/${webSocketMatchId}`
+          );
+          const data = await resp.json();
+
+          console.log("🔍 Backend debug response:", data);
+
+          if (data.success) {
+            alert(
+              `✅ Match found on-chain!\n\nWebSocket ID: ${
+                data.webSocketMatchId
+              }\nBlockchain ID: ${
+                data.blockchainMatchId
+              }\nOn-chain data: ${JSON.stringify(data.onChainData, null, 2)}`
+            );
+          } else {
+            alert(
+              `❌ Match not found on-chain!\n\nWebSocket ID: ${data.webSocketMatchId}\nBlockchain ID: ${data.blockchainMatchId}\nError: ${data.error}`
+            );
+          }
+        } catch (error) {
+          console.error("Debug match error:", error);
+          alert(`Debug failed: ${error.message}`);
+        }
       }
 
       function buildBoard() {

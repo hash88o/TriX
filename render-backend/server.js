@@ -161,15 +161,27 @@ app.post("/match/start", async (req, res) => {
             return res.status(500).json({ error: "Blockchain contracts not initialized" });
         }
 
+        // Convert matchId to blockchain format
+        const blockchainMatchId = ethers.keccak256(ethers.solidityPacked(["string"], [matchId]));
+        console.log(`🔗 Creating match with:`);
+        console.log(`  - WebSocket matchId: ${matchId}`);
+        console.log(`  - Blockchain matchId: ${blockchainMatchId}`);
+        console.log(`  - Player 1: ${p1}`);
+        console.log(`  - Player 2: ${p2}`);
+        console.log(`  - Stake: ${stake} GT`);
+
         const tx = await contracts.playGame.createMatch(
-            ethers.keccak256(ethers.solidityPacked(["string"], [matchId])),
+            blockchainMatchId,
             p1,
             p2,
             ethers.parseUnits(String(stake), 18)
         );
 
         const receipt = await tx.wait();
-        console.log("✅ Match created:", matchId, receipt.transactionHash);
+        console.log("✅ Match created on blockchain:");
+        console.log(`  - WebSocket matchId: ${matchId}`);
+        console.log(`  - Blockchain matchId: ${blockchainMatchId}`);
+        console.log(`  - Transaction hash: ${receipt.transactionHash}`);
 
         res.json({
             success: true,
@@ -187,6 +199,9 @@ app.post("/match/result", async (req, res) => {
     try {
         const { matchId, winner } = req.body;
 
+        console.log(`🎯 Result submission request:`, { matchId, winner });
+        console.log(`🔍 Converting matchId to blockchain format...`);
+
         if (!matchId || !winner) {
             return res.status(400).json({ error: "Missing matchId or winner" });
         }
@@ -195,8 +210,29 @@ app.post("/match/result", async (req, res) => {
             return res.status(500).json({ error: "Blockchain contracts not initialized" });
         }
 
+        // Convert the matchId to the blockchain format
+        const blockchainMatchId = ethers.keccak256(ethers.solidityPacked(["string"], [matchId]));
+        console.log(`🔗 Original matchId: ${matchId}`);
+        console.log(`🔗 Blockchain matchId: ${blockchainMatchId}`);
+
+        console.log(`📝 Calling commitResult with blockchainMatchId: ${blockchainMatchId}, winner: ${winner}`);
+
+        // First, let's verify the match exists on-chain
+        try {
+            console.log(`🔍 Verifying match exists on-chain...`);
+            const matchData = await contracts.playGame.getMatch(blockchainMatchId);
+            console.log(`✅ Match found on-chain:`, matchData);
+        } catch (verifyError) {
+            console.error(`❌ Match verification failed:`, verifyError.message);
+            return res.status(400).json({
+                error: `Match does not exist on-chain: ${verifyError.message}`,
+                blockchainMatchId: blockchainMatchId,
+                originalMatchId: matchId
+            });
+        }
+
         const tx = await contracts.playGame.commitResult(
-            ethers.keccak256(ethers.solidityPacked(["string"], [matchId])),
+            blockchainMatchId,
             winner
         );
 
@@ -352,6 +388,10 @@ io.on('connection', (socket) => {
             createdBy: createdBy,
             txHash: txHash
         });
+
+        // Store the blockchain matchId in the match data for later use
+        match.blockchainMatchId = blockchainMatchId;
+        console.log(`💾 Stored blockchainMatchId ${blockchainMatchId} for match ${matchId}`);
     });
 
     // Player 1 confirms match creation and staking
@@ -553,6 +593,41 @@ app.get('/stats', (req, res) => {
         connectedPlayers: playerSessions.size,
         totalPlayers: waitingPlayers.size + (activeMatches.size * 2)
     });
+});
+
+// Debug endpoint to check match data
+app.get('/debug/match/:matchId', async (req, res) => {
+    try {
+        const { matchId } = req.params;
+
+        if (!contracts || !contracts.playGame) {
+            return res.status(500).json({ error: "Blockchain contracts not initialized" });
+        }
+
+        // Convert to blockchain format
+        const blockchainMatchId = ethers.keccak256(ethers.solidityPacked(["string"], [matchId]));
+
+        console.log(`🔍 Debug: Checking match ${matchId} -> ${blockchainMatchId}`);
+
+        try {
+            const matchData = await contracts.playGame.getMatch(blockchainMatchId);
+            res.json({
+                success: true,
+                webSocketMatchId: matchId,
+                blockchainMatchId: blockchainMatchId,
+                onChainData: matchData
+            });
+        } catch (error) {
+            res.json({
+                success: false,
+                webSocketMatchId: matchId,
+                blockchainMatchId: blockchainMatchId,
+                error: error.message
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Start server
