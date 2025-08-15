@@ -317,6 +317,37 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Player 1 notifies Player 2 that match is created on-chain
+    socket.on('notifyPlayer2', (data) => {
+        const { matchId, blockchainMatchId, createdBy } = data;
+        const match = activeMatches.get(matchId);
+
+        if (!match) return;
+
+        console.log(`🔔 Notifying Player 2 (${match.player2}) to stake in match ${matchId}`);
+
+        // Emit matchCreatedOnChain event to Player 2
+        io.to(match.player2SocketId).emit('matchCreatedOnChain', {
+            matchId: matchId,
+            blockchainMatchId: blockchainMatchId,
+            createdBy: createdBy
+        });
+    });
+
+    // Player 1 confirms match creation and staking
+    socket.on('matchCreated', (data) => {
+        const { matchId, player1, player2, stake, blockchainMatchId, playerStaked } = data;
+        const match = activeMatches.get(matchId);
+
+        if (!match) return;
+
+        console.log(`✅ Match ${matchId} confirmed created by ${playerStaked} with blockchain ID ${blockchainMatchId}`);
+
+        // Update match status
+        match.blockchainMatchId = blockchainMatchId;
+        match.status = 'BLOCKCHAIN_CREATED';
+    });
+
     // Player makes a move
     socket.on('makeMove', (data) => {
         const { matchId, row, col, symbol } = data;
