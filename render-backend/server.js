@@ -386,9 +386,39 @@ io.on('connection', (socket) => {
         // Check for win
         const isWin = checkWin(match.board, symbol);
         if (isWin) {
-            endGame(matchId, symbol);
+            // CRITICAL FIX: Send the winning move to both players BEFORE ending the game
+            console.log(`🏆 Winning move detected! ${symbol} wins with move at (${row}, ${col})`);
+
+            // Notify both players about the winning move
+            io.to(match.player1SocketId).emit('moveMade', {
+                row, col, symbol, nextPlayer: 'GAME_OVER'
+            });
+            io.to(match.player2SocketId).emit('moveMade', {
+                row, col, symbol, nextPlayer: 'GAME_OVER'
+            });
+
+            // Small delay to ensure the move is displayed before ending the game
+            setTimeout(() => {
+                endGame(matchId, symbol);
+            }, 100);
+
         } else if (checkDraw(match.board)) {
-            endGame(matchId, 'DRAW');
+            // CRITICAL FIX: Send the final move for draw BEFORE ending the game
+            console.log(`🤝 Draw detected! Final move at (${row}, ${col})`);
+
+            // Notify both players about the final move
+            io.to(match.player1SocketId).emit('moveMade', {
+                row, col, symbol, nextPlayer: 'GAME_OVER'
+            });
+            io.to(match.player2SocketId).emit('moveMade', {
+                row, col, symbol, nextPlayer: 'GAME_OVER'
+            });
+
+            // Small delay to ensure the move is displayed before ending the game
+            setTimeout(() => {
+                endGame(matchId, 'DRAW');
+            }, 100);
+
         } else {
             // Switch turns
             match.currentPlayer = match.currentPlayer === 'X' ? 'O' : 'X';
@@ -491,10 +521,19 @@ function endGame(matchId, result) {
     match.gameActive = false;
     match.result = result;
 
+    // Determine winner address based on result
+    let winnerAddress = null;
+    if (result === 'X') {
+        winnerAddress = match.player1;
+    } else if (result === 'O') {
+        winnerAddress = match.player2;
+    }
+
     // Notify both players with transaction hashes for Etherscan
     const gameData = {
         matchId,
         result,
+        winnerAddress,
         creationTxHash: match.creationTxHash,
         blockchainMatchId: match.blockchainMatchId
     };
@@ -502,7 +541,7 @@ function endGame(matchId, result) {
     io.to(match.player1SocketId).emit('gameEnded', gameData);
     io.to(match.player2SocketId).emit('gameEnded', gameData);
 
-    console.log(`🎮 Game ended: ${matchId} - Result: ${result}`);
+    console.log(`🎮 Game ended: ${matchId} - Result: ${result}, Winner: ${winnerAddress}`);
     console.log(`🔗 Transaction hashes available for Etherscan:`, gameData);
 }
 

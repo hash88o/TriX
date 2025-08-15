@@ -688,6 +688,34 @@
           }
 
           updateConnectionStatus(false);
+
+          // Check if wallet is already connected
+          if (window.ethereum && window.ethereum.selectedAddress) {
+            console.log("🔗 Wallet already connected, reconnecting...");
+            connectBtn.click();
+          }
+
+          // Function to check wallet connection status
+          function checkWalletConnection() {
+            if (window.isWalletConnected && window.userAddress) {
+              console.log("✅ Wallet connection verified:", window.userAddress);
+              if (findOpponentBtn) {
+                findOpponentBtn.disabled = false;
+                console.log("✅ Find Opponent button enabled");
+              }
+              return true;
+            } else {
+              console.log("❌ Wallet not connected");
+              if (findOpponentBtn) {
+                findOpponentBtn.disabled = true;
+                console.log("❌ Find Opponent button disabled");
+              }
+              return false;
+            }
+          }
+
+          // Check wallet connection status every 2 seconds
+          setInterval(checkWalletConnection, 2000);
         } catch (error) {
           console.error("❌ Failed to load configuration:", error);
           showStatus("❌ Failed to connect to backend", "error");
@@ -955,6 +983,10 @@
           console.log("✅ All contracts initialized");
           updateConnectionStatus(true);
 
+          // Set global wallet state
+          window.isWalletConnected = true;
+          window.userAddress = userAddress;
+
           console.log("💰 Updating balances...");
           await updateBalances();
 
@@ -965,41 +997,17 @@
           setInterval(updateDebugInfo, 2000);
           setInterval(updateEtherscanLinks, 2000);
 
-          // Setup debug actions
+          // Setup debug actions (will be configured after socket is initialized)
           const debugActions = document.getElementById("debugActions");
           const debugGameStartBtn =
             document.getElementById("debugGameStartBtn");
           const debugEmitStakedBtn =
             document.getElementById("debugEmitStakedBtn");
 
-          if (debugActions && debugGameStartBtn && debugEmitStakedBtn) {
-            // Show debug actions when match is found
-            socket.on("matchFound", () => {
-              debugActions.classList.remove("hidden");
-            });
-
-            // Force game start button
-            debugGameStartBtn.onclick = () => {
-              console.log("🐛 Force game start clicked");
-              if (mmState.socketMatchId) {
-                socket.emit("forceGameStart", {
-                  matchId: mmState.socketMatchId,
-                });
-              }
-            };
-
-            // Re-emit playerStaked button
-            debugEmitStakedBtn.onclick = () => {
-              console.log("🐛 Re-emit playerStaked clicked");
-              if (mmState.socketMatchId && mmState.blockchainMatchId) {
-                socket.emit("playerStaked", {
-                  matchId: mmState.socketMatchId,
-                  address: userAddress,
-                  blockchainMatchId: mmState.blockchainMatchId,
-                });
-              }
-            };
-          }
+          // Store references for later setup
+          window.debugActions = debugActions;
+          window.debugGameStartBtn = debugGameStartBtn;
+          window.debugEmitStakedBtn = debugEmitStakedBtn;
 
           // Enable buttons
           buyBtn.disabled = false;
@@ -1007,7 +1015,12 @@
           stakeInMatchBtn.disabled = false;
           declareResultBtn.disabled = false;
           faucetBtn.disabled = false;
-          findOpponentBtn.disabled = false;
+
+          // Enable matchmaking button only if wallet is connected
+          if (findOpponentBtn) {
+            findOpponentBtn.disabled = false;
+            console.log("✅ Find Opponent button enabled");
+          }
 
           console.log("🎮 Loading assigned matches...");
           await loadAssignedMatches();
@@ -1063,6 +1076,42 @@
           socket = io(MATCHMAKING_URL, { transports: ["websocket"] });
           mmStatus.textContent =
             "Connected to matchmaking. Enter stake and click Find Opponent.";
+
+          // Setup debug actions now that socket is available
+          if (
+            window.debugActions &&
+            window.debugGameStartBtn &&
+            window.debugEmitStakedBtn
+          ) {
+            // Show debug actions when match is found
+            socket.on("matchFound", () => {
+              window.debugActions.classList.remove("hidden");
+            });
+
+            // Force game start button
+            window.debugGameStartBtn.onclick = () => {
+              console.log("🐛 Force game start clicked");
+              if (mmState.socketMatchId) {
+                socket.emit("forceGameStart", {
+                  matchId: mmState.socketMatchId,
+                });
+              }
+            };
+
+            // Re-emit playerStaked button
+            window.debugEmitStakedBtn.onclick = () => {
+              console.log("🐛 Re-emit playerStaked clicked");
+              if (mmState.socketMatchId && mmState.blockchainMatchId) {
+                socket.emit("playerStaked", {
+                  matchId: mmState.socketMatchId,
+                  address: userAddress,
+                  blockchainMatchId: mmState.blockchainMatchId,
+                });
+              }
+            };
+
+            console.log("✅ Debug actions configured");
+          }
 
           // Matchmaking status updates
           socket.on("matchmakingStatus", (data) => {
@@ -1237,26 +1286,53 @@
 
           // Opponent move
           socket.on("moveMade", ({ row, col, symbol, nextPlayer }) => {
+            console.log(
+              `🎯 Move received: ${symbol} at (${row}, ${col}), nextPlayer: ${nextPlayer}`
+            );
+
             const idx = row * 3 + col;
             const cell = mmBoard.children[idx];
             if (cell && !cell.textContent) {
               cell.textContent = symbol;
+              console.log(
+                `✅ Move displayed on board: ${symbol} at index ${idx}`
+              );
+            } else {
+              console.log(
+                `⚠️ Could not display move: cell ${idx} already has content or doesn't exist`
+              );
             }
-            mmState.isMyTurn = nextPlayer === mmState.mySymbol;
-            updateTurnText();
+
+            // Check if game is over
+            if (nextPlayer === "GAME_OVER") {
+              console.log(`🏁 Game over detected from moveMade event`);
+              mmState.isMyTurn = false;
+              updateTurnText();
+            } else {
+              mmState.isMyTurn = nextPlayer === mmState.mySymbol;
+              updateTurnText();
+            }
           });
 
           // Game end
           socket.on(
-            "gameEnd",
-            async ({ winner, winnerAddress, finalBoard }) => {
+            "gameEnded",
+            async ({ result, winnerAddress, finalBoard }) => {
+              console.log(`🏁 Game ended event received:`, {
+                result,
+                winnerAddress,
+                finalBoard,
+              });
+
               if (finalBoard) {
                 finalBoard.forEach((v, i) => {
                   if (v && mmBoard.children[i])
                     mmBoard.children[i].textContent = v;
                 });
               }
+
               if (winnerAddress) {
+                console.log(`🏆 Winner detected: ${winnerAddress} (${result})`);
                 mmStatus.textContent = `Game over. Winner: ${short(
                   winnerAddress
                 )}. Submitting result on-chain...`;
