@@ -325,11 +325,13 @@ io.on('connection', (socket) => {
         if (!match) return;
 
         console.log(`🔔 Notifying Player 2 (${match.player2}) to stake in match ${matchId}`);
+        console.log(`🔔 Received blockchainMatchId: ${blockchainMatchId}`);
+        console.log(`🔔 Full notifyPlayer2 data:`, data);
 
         // Emit matchCreatedOnChain event to Player 2
         io.to(match.player2SocketId).emit('matchCreatedOnChain', {
             matchId: matchId,
-            blockchainMatchId: blockchainMatchId,
+            blockchainMatchId: blockchainMatchId, // This should be the actual blockchain matchId
             createdBy: createdBy
         });
     });

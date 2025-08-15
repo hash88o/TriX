@@ -1198,9 +1198,15 @@
           });
 
           // Also emit specific event for Player 2 to stake
-          socket.emit("notifyPlayer2", {
+          console.log("🔔 Emitting notifyPlayer2 with data:", {
             matchId: matchData.matchId,
             blockchainMatchId: data.matchId,
+            createdBy: userAddress,
+          });
+
+          socket.emit("notifyPlayer2", {
+            matchId: matchData.matchId,
+            blockchainMatchId: data.matchId, // This should be the blockchain matchId from backend
             createdBy: userAddress,
           });
         } catch (e) {
