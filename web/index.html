@@ -1021,7 +1021,7 @@
                 // Notify that we've staked
                 socket.emit("playerStaked", {
                   matchId: mmState.socketMatchId,
-                  player: userAddress,
+                  address: userAddress, // ✅ Changed from 'player' to 'address' to match backend
                   blockchainMatchId: data.blockchainMatchId,
                 });
               } catch (e) {
@@ -1157,8 +1157,12 @@
           const data = await resp.json();
           if (!resp.ok) throw new Error(data.error || "Failed to create match");
 
-          mmState.blockchainMatchId = data.matchId;
-          console.log("✅ Match created on-chain:", data.matchId);
+          // Store the blockchain matchId (converted from WebSocket matchId)
+          const blockchainMatchId = ethers.keccak256(
+            ethers.solidityPacked(["string"], [data.matchId])
+          );
+          mmState.blockchainMatchId = blockchainMatchId;
+          console.log("✅ Match created on-chain:", blockchainMatchId);
 
           // Now both players need to stake in this match
           mmStatus.textContent = `Match created! Now staking ${matchData.stake} GT...`;
@@ -1177,15 +1181,25 @@
 
           // 2) Stake in the actual match
           console.log("🎯 Staking in match...");
-          // Convert string matchId to bytes32 for contract call
-          const matchIdBytes32 = ethers.keccak256(
-            ethers.solidityPacked(["string"], [data.matchId])
-          );
-          const stakeTx = await contracts.playGame.stake(matchIdBytes32);
+          // Use the already converted blockchainMatchId for staking
+          const stakeTx = await contracts.playGame.stake(blockchainMatchId);
           await stakeTx.wait();
           console.log("✅ Staking successful");
 
           mmStatus.textContent = `✅ Staked ${matchData.stake} GT! Waiting for opponent...`;
+
+          // Validate the blockchain matchId before using it
+          try {
+            if (!ethers.isHexString(blockchainMatchId, 32)) {
+              throw new Error("Invalid blockchain matchId format");
+            }
+            console.log("🔔 Blockchain matchId validated:", blockchainMatchId);
+          } catch (error) {
+            console.error("❌ Invalid blockchain matchId:", error);
+            mmStatus.textContent =
+              "Failed to validate match ID. Please try again.";
+            return;
+          }
 
           // Notify matchmaking server that match is created and Player 1 has staked
           socket.emit("matchCreated", {
@@ -1193,20 +1207,19 @@
             player1: matchData.player1,
             player2: matchData.player2,
             stake: matchData.stake,
-            blockchainMatchId: data.matchId,
+            blockchainMatchId: blockchainMatchId, // ✅ Use the converted blockchain matchId
             playerStaked: userAddress,
           });
 
-          // Also emit specific event for Player 2 to stake
           console.log("🔔 Emitting notifyPlayer2 with data:", {
             matchId: matchData.matchId,
-            blockchainMatchId: data.matchId,
+            blockchainMatchId: blockchainMatchId,
             createdBy: userAddress,
           });
 
           socket.emit("notifyPlayer2", {
             matchId: matchData.matchId,
-            blockchainMatchId: data.matchId, // This should be the blockchain matchId from backend
+            blockchainMatchId: blockchainMatchId, // Now this is the correct bytes32 hash
             createdBy: userAddress,
           });
         } catch (e) {
@@ -1315,9 +1328,9 @@
             <strong>Address:</strong><br>${userAddress}
           </div>
           <div style="margin-top: 10px; text-align: center;">
-            <button 
-              type="button" 
-              onclick="updateBalances()" 
+            <button
+              type="button"
+              onclick="updateBalances()"
               class="btn btn-secondary"
               style="font-size: 0.8rem; padding: 5px 10px;"
             >
