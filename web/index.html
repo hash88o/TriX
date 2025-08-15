@@ -147,6 +147,27 @@
               "
             ></div>
           </div>
+
+          <!-- Debug Info -->
+          <div
+            class="debug-info"
+            style="
+              margin-top: 15px;
+              padding: 10px;
+              background: #f8f9fa;
+              border-radius: 5px;
+              font-size: 0.85rem;
+            "
+          >
+            <strong>🔍 Debug Info:</strong>
+            <div>Socket ID: <span id="debugSocketId">-</span></div>
+            <div>Match ID: <span id="debugMatchId">-</span></div>
+            <div>
+              Blockchain Match ID: <span id="debugBlockchainMatchId">-</span>
+            </div>
+            <div>Player Role: <span id="debugPlayerRole">-</span></div>
+            <div>Game Status: <span id="debugGameStatus">-</span></div>
+          </div>
         </div>
 
         <!-- Create/Stake Match -->
@@ -886,6 +907,9 @@
           // Start auto-refresh for balances
           startBalanceAutoRefresh();
 
+          // Start debug info updates
+          setInterval(updateDebugInfo, 2000);
+
           // Enable buttons
           buyBtn.disabled = false;
           createMatchBtn.disabled = false;
@@ -969,6 +993,9 @@
               matchData.player1
             )} vs ${short(matchData.player2)} • Stake ${matchData.stake} GT`;
 
+            // Update debug info
+            updateDebugInfo();
+
             // Only player1 creates the match to avoid race conditions
             const isPlayer1 =
               userAddress.toLowerCase() === matchData.player1.toLowerCase();
@@ -993,6 +1020,9 @@
               );
               mmState.blockchainMatchId = data.blockchainMatchId;
 
+              // Update debug info
+              updateDebugInfo();
+
               try {
                 mmStatus.textContent = `Match created! Now staking ${mmState.stake} GT...`;
 
@@ -1016,14 +1046,45 @@
                 await stakeTx.wait();
                 console.log("✅ Staking successful");
 
-                mmStatus.textContent = `✅ Staked ${mmState.stake} GT! Waiting for game start...`;
+                // Display Etherscan links for Player 2 staking
+                const etherscanBase =
+                  window.location.hostname === "localhost"
+                    ? "https://sepolia.etherscan.io"
+                    : "https://sepolia.etherscan.io";
+
+                mmStatus.innerHTML = `
+                  <div>✅ Staked ${
+                    mmState.stake
+                  } GT! Waiting for game start...</div>
+                  <div style="margin-top: 10px; font-size: 0.9rem;">
+                    <strong>Transaction Links:</strong><br>
+                    <a href="${etherscanBase}/tx/${
+                  approveTx.hash
+                }" target="_blank" style="color: #007bff;">
+                      🔐 GT Approval: ${short(approveTx.hash)}
+                    </a><br>
+                    <a href="${etherscanBase}/tx/${
+                  stakeTx.hash
+                }" target="_blank" style="color: #007bff;">
+                      ⚡ Player 2 Staking: ${short(stakeTx.hash)}
+                    </a>
+                  </div>
+                `;
 
                 // Notify that we've staked
+                console.log("🔔 Emitting playerStaked event:", {
+                  matchId: mmState.socketMatchId,
+                  address: userAddress,
+                  blockchainMatchId: data.blockchainMatchId,
+                });
+
                 socket.emit("playerStaked", {
                   matchId: mmState.socketMatchId,
                   address: userAddress, // ✅ Changed from 'player' to 'address' to match backend
                   blockchainMatchId: data.blockchainMatchId,
                 });
+
+                console.log("✅ playerStaked event emitted successfully");
               } catch (e) {
                 console.error("❌ Player 2 staking failed:", e);
                 mmStatus.textContent = `Failed to stake: ${e.message}`;
@@ -1033,12 +1094,44 @@
 
           // Game start
           socket.on("gameStart", ({ matchId, symbol, isFirst }) => {
-            if (matchId !== mmState.socketMatchId) return;
+            console.log("🎮 Game start event received:", {
+              matchId,
+              symbol,
+              isFirst,
+            });
+            console.log(
+              "🎮 Current mmState.socketMatchId:",
+              mmState.socketMatchId
+            );
+
+            if (matchId !== mmState.socketMatchId) {
+              console.log("❌ Match ID mismatch, ignoring game start");
+              return;
+            }
+
+            console.log("✅ Game starting! Building board...");
             mmState.mySymbol = symbol;
             mmState.isMyTurn = !!isFirst;
             mmGame.classList.remove("hidden");
             buildBoard();
             updateTurnText();
+
+            // Update status to show game has started
+            mmStatus.innerHTML = `
+              <div>🎮 Game started! You are playing as <strong>${symbol}</strong></div>
+              <div style="margin-top: 5px; font-size: 0.9rem;">
+                ${
+                  mmState.isMyTurn
+                    ? "🟢 It's your turn!"
+                    : "⏳ Waiting for opponent..."
+                }
+              </div>
+            `;
+
+            // Update debug info
+            updateDebugInfo();
+
+            console.log("🎮 Game board built and ready!");
           });
 
           // Opponent move
@@ -1086,9 +1179,30 @@
                     const data = await resp.json();
                     if (!resp.ok)
                       throw new Error(data.error || "Commit failed");
-                    mmStatus.textContent = `Result submitted. Tx: ${short(
+                    // Display Etherscan links for all transactions
+                    const etherscanBase =
+                      window.location.hostname === "localhost"
+                        ? "https://sepolia.etherscan.io"
+                        : "https://sepolia.etherscan.io";
+
+                    mmStatus.innerHTML = `
+                      <div>✅ Result submitted successfully!</div>
+                      <div style="margin-top: 10px; font-size: 0.9rem;">
+                        <strong>Transaction Links:</strong><br>
+                        <a href="${etherscanBase}/tx/${
                       data.txHash
-                    )}`;
+                    }" target="_blank" style="color: #007bff;">
+                          🎯 Result Submission: ${short(data.txHash)}
+                        </a>
+                      </div>
+                    `;
+
+                    // Add to events list
+                    addEvent(
+                      `🏆 Game won by ${short(
+                        winnerAddress
+                      )} - Result submitted on-chain`
+                    );
                   } catch (e) {
                     console.error(e);
                     mmStatus.textContent = `Failed to submit result: ${e.message}`;
@@ -1125,6 +1239,47 @@
 
       function updateTurnText() {
         mmTurn.textContent = mmState.isMyTurn ? "Your turn" : "Opponent's turn";
+      }
+
+      function updateDebugInfo() {
+        const debugSocketId = document.getElementById("debugSocketId");
+        const debugMatchId = document.getElementById("debugMatchId");
+        const debugBlockchainMatchId = document.getElementById(
+          "debugBlockchainMatchId"
+        );
+        const debugPlayerRole = document.getElementById("debugPlayerRole");
+        const debugGameStatus = document.getElementById("debugGameStatus");
+
+        if (debugSocketId) debugSocketId.textContent = socket?.id || "-";
+        if (debugMatchId)
+          debugMatchId.textContent = mmState.socketMatchId || "-";
+        if (debugBlockchainMatchId)
+          debugBlockchainMatchId.textContent = mmState.blockchainMatchId || "-";
+
+        let playerRole = "-";
+        if (mmState.player1 && mmState.player2) {
+          if (userAddress?.toLowerCase() === mmState.player1.toLowerCase()) {
+            playerRole = "Player 1 (X)";
+          } else if (
+            userAddress?.toLowerCase() === mmState.player2.toLowerCase()
+          ) {
+            playerRole = "Player 2 (O)";
+          }
+        }
+        if (debugPlayerRole) debugPlayerRole.textContent = playerRole;
+
+        let gameStatus = "-";
+        if (mmState.socketMatchId) {
+          if (mmState.blockchainMatchId) {
+            gameStatus = "Match Created";
+            if (mmState.mySymbol) {
+              gameStatus += ` - Playing as ${mmState.mySymbol}`;
+            }
+          } else {
+            gameStatus = "Match Found";
+          }
+        }
+        if (debugGameStatus) debugGameStatus.textContent = gameStatus;
       }
 
       async function doMove(index) {
@@ -1186,7 +1341,28 @@
           await stakeTx.wait();
           console.log("✅ Staking successful");
 
-          mmStatus.textContent = `✅ Staked ${matchData.stake} GT! Waiting for opponent...`;
+          // Display Etherscan links for match creation and staking
+          const etherscanBase =
+            window.location.hostname === "localhost"
+              ? "https://sepolia.etherscan.io"
+              : "https://sepolia.etherscan.io";
+
+          mmStatus.innerHTML = `
+            <div>✅ Staked ${matchData.stake} GT! Waiting for opponent...</div>
+            <div style="margin-top: 10px; font-size: 0.9rem;">
+              <strong>Transaction Links:</strong><br>
+              <a href="${etherscanBase}/tx/${
+            data.txHash
+          }" target="_blank" style="color: #007bff;">
+                🎮 Match Creation: ${short(data.txHash)}
+              </a><br>
+              <a href="${etherscanBase}/tx/${
+            stakeTx.hash
+          }" target="_blank" style="color: #007bff;">
+                ⚡ Player 1 Staking: ${short(stakeTx.hash)}
+              </a>
+            </div>
+          `;
 
           // Validate the blockchain matchId before using it
           try {
@@ -1215,12 +1391,14 @@
             matchId: matchData.matchId,
             blockchainMatchId: blockchainMatchId,
             createdBy: userAddress,
+            txHash: data.txHash, // Include transaction hash from backend
           });
 
           socket.emit("notifyPlayer2", {
             matchId: matchData.matchId,
             blockchainMatchId: blockchainMatchId, // Now this is the correct bytes32 hash
             createdBy: userAddress,
+            txHash: data.txHash, // Include transaction hash for Etherscan links
           });
         } catch (e) {
           console.error("❌ Match creation/staking failed:", e);

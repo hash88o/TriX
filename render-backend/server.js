@@ -285,20 +285,28 @@ io.on('connection', (socket) => {
 
     // Player stakes in match
     socket.on('playerStaked', (data) => {
-        const { matchId, address } = data;
+        const { matchId, address, blockchainMatchId } = data;
         const match = activeMatches.get(matchId);
 
         if (!match) return;
 
+        console.log(`🎯 Player ${address} staked in match ${matchId}`);
+
         if (match.player1 === address) {
             match.player1Staked = true;
+            console.log(`✅ Player 1 staked: ${match.player1Staked}`);
         } else if (match.player2 === address) {
             match.player2Staked = true;
+            console.log(`✅ Player 2 staked: ${match.player2Staked}`);
         }
 
         // Check if both players have staked
         if (match.player1Staked && match.player2Staked) {
             match.gameActive = true;
+            match.currentPlayer = 'X'; // Start with X
+
+            console.log(`🎮 Both players staked! Starting game for match ${matchId}`);
+            console.log(`🎮 Match state:`, match);
 
             // Start game
             io.to(match.player1SocketId).emit('gameStart', {
@@ -313,26 +321,35 @@ io.on('connection', (socket) => {
                 isFirst: false
             });
 
-            console.log(`🎮 Both players staked! Starting game for match ${matchId}`);
+            console.log(`🎮 Game start events sent to both players`);
+        } else {
+            console.log(`⏳ Waiting for other player to stake. P1: ${match.player1Staked}, P2: ${match.player2Staked}`);
         }
     });
 
     // Player 1 notifies Player 2 that match is created on-chain
     socket.on('notifyPlayer2', (data) => {
-        const { matchId, blockchainMatchId, createdBy } = data;
+        const { matchId, blockchainMatchId, createdBy, txHash } = data;
         const match = activeMatches.get(matchId);
 
         if (!match) return;
 
         console.log(`🔔 Notifying Player 2 (${match.player2}) to stake in match ${matchId}`);
         console.log(`🔔 Received blockchainMatchId: ${blockchainMatchId}`);
+        console.log(`🔔 Transaction hash: ${txHash}`);
         console.log(`🔔 Full notifyPlayer2 data:`, data);
+
+        // Store transaction hash for Etherscan links
+        if (txHash) {
+            match.creationTxHash = txHash;
+        }
 
         // Emit matchCreatedOnChain event to Player 2
         io.to(match.player2SocketId).emit('matchCreatedOnChain', {
             matchId: matchId,
             blockchainMatchId: blockchainMatchId, // This should be the actual blockchain matchId
-            createdBy: createdBy
+            createdBy: createdBy,
+            txHash: txHash
         });
     });
 
@@ -440,11 +457,19 @@ function endGame(matchId, result) {
     match.gameActive = false;
     match.result = result;
 
-    // Notify both players
-    io.to(match.player1SocketId).emit('gameEnded', { matchId, result });
-    io.to(match.player2SocketId).emit('gameEnded', { matchId, result });
+    // Notify both players with transaction hashes for Etherscan
+    const gameData = {
+        matchId,
+        result,
+        creationTxHash: match.creationTxHash,
+        blockchainMatchId: match.blockchainMatchId
+    };
+
+    io.to(match.player1SocketId).emit('gameEnded', gameData);
+    io.to(match.player2SocketId).emit('gameEnded', gameData);
 
     console.log(`🎮 Game ended: ${matchId} - Result: ${result}`);
+    console.log(`🔗 Transaction hashes available for Etherscan:`, gameData);
 }
 
 // Stats endpoint
