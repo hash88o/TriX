@@ -1656,13 +1656,10 @@
           console.log("🔍 Backend response data:", data);
           console.log("🔍 Transaction hash from backend:", data.txHash);
 
-          // Store the blockchain matchId (converted from WebSocket matchId)
-          const blockchainMatchId = ethers.keccak256(
-            ethers.solidityPacked(["string"], [data.matchId])
-          );
-          mmState.blockchainMatchId = blockchainMatchId;
+          // Store the ACTUAL blockchain matchId from the backend response
+          mmState.blockchainMatchId = data.blockchainMatchId;
           mmState.creationTxHash = data.txHash; // Store creation transaction hash
-          console.log("✅ Match created on-chain:", blockchainMatchId);
+          console.log("✅ Match created on-chain:", data.blockchainMatchId);
           console.log("🔗 Creation transaction hash:", data.txHash);
 
           // Now both players need to stake in this match
@@ -1682,8 +1679,10 @@
 
           // 2) Stake in the actual match
           console.log("🎯 Staking in match...");
-          // Use the already converted blockchainMatchId for staking
-          const stakeTx = await contracts.playGame.stake(blockchainMatchId);
+          // Use the blockchain matchId from the backend response
+          const stakeTx = await contracts.playGame.stake(
+            data.blockchainMatchId
+          );
           await stakeTx.wait();
           mmState.player1StakingTxHash = stakeTx.hash; // Store Player 1 staking transaction hash
           console.log("✅ Staking successful");
@@ -1714,10 +1713,13 @@
 
           // Validate the blockchain matchId before using it
           try {
-            if (!ethers.isHexString(blockchainMatchId, 32)) {
+            if (!ethers.isHexString(data.blockchainMatchId, 32)) {
               throw new Error("Invalid blockchain matchId format");
             }
-            console.log("🔔 Blockchain matchId validated:", blockchainMatchId);
+            console.log(
+              "🔔 Blockchain matchId validated:",
+              data.blockchainMatchId
+            );
           } catch (error) {
             console.error("❌ Invalid blockchain matchId:", error);
             mmStatus.textContent =
@@ -1729,13 +1731,13 @@
           console.log("🔔 Player 1 emitting playerStaked event:", {
             matchId: matchData.matchId,
             address: userAddress,
-            blockchainMatchId: blockchainMatchId,
+            blockchainMatchId: data.blockchainMatchId,
           });
 
           socket.emit("playerStaked", {
             matchId: matchData.matchId,
             address: userAddress,
-            blockchainMatchId: blockchainMatchId,
+            blockchainMatchId: data.blockchainMatchId,
           });
 
           console.log("✅ Player 1 playerStaked event emitted");
@@ -1746,13 +1748,13 @@
             player1: matchData.player1,
             player2: matchData.player2,
             stake: matchData.stake,
-            blockchainMatchId: blockchainMatchId, // ✅ Use the converted blockchain matchId
+            blockchainMatchId: data.blockchainMatchId, // ✅ Use the blockchain matchId from backend
             playerStaked: userAddress,
           });
 
           console.log("🔔 Emitting notifyPlayer2 with data:", {
             matchId: matchData.matchId,
-            blockchainMatchId: blockchainMatchId,
+            blockchainMatchId: data.blockchainMatchId,
             createdBy: userAddress,
             txHash: data.txHash, // Include transaction hash from backend
           });
@@ -1766,7 +1768,7 @@
 
           socket.emit("notifyPlayer2", {
             matchId: matchData.matchId,
-            blockchainMatchId: blockchainMatchId, // Now this is the correct bytes32 hash
+            blockchainMatchId: data.blockchainMatchId, // Now this is the correct bytes32 hash
             createdBy: userAddress,
             txHash: data.txHash || "pending", // Include transaction hash for Etherscan links
           });

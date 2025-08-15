@@ -185,7 +185,8 @@ app.post("/match/start", async (req, res) => {
 
         res.json({
             success: true,
-            matchId: matchId, // Return the original matchId, not transaction hash
+            matchId: matchId, // Return the original WebSocket matchId
+            blockchainMatchId: blockchainMatchId, // Return the actual blockchain matchId
             txHash: receipt.transactionHash, // Add transaction hash separately
             message: `Match created successfully! Players: ${p1} vs ${p2}, Stake: ${stake} GT each`,
         });
@@ -210,10 +211,19 @@ app.post("/match/result", async (req, res) => {
             return res.status(500).json({ error: "Blockchain contracts not initialized" });
         }
 
-        // Convert the matchId to the blockchain format
-        const blockchainMatchId = ethers.keccak256(ethers.solidityPacked(["string"], [matchId]));
-        console.log(`🔗 Original matchId: ${matchId}`);
-        console.log(`🔗 Blockchain matchId: ${blockchainMatchId}`);
+        // Check if matchId is already a blockchain match ID (starts with 0x and is 66 chars)
+        let blockchainMatchId;
+        if (matchId.startsWith('0x') && matchId.length === 66) {
+            // It's already a blockchain match ID
+            blockchainMatchId = matchId;
+            console.log(`🔗 matchId is already a blockchain match ID: ${blockchainMatchId}`);
+        } else {
+            // Convert the matchId to the blockchain format (for backward compatibility)
+            blockchainMatchId = ethers.keccak256(ethers.solidityPacked(["string"], [matchId]));
+            console.log(`🔗 Converting WebSocket matchId to blockchain format:`);
+            console.log(`  - Original matchId: ${matchId}`);
+            console.log(`  - Converted blockchainMatchId: ${blockchainMatchId}`);
+        }
 
         console.log(`📝 Calling commitResult with blockchainMatchId: ${blockchainMatchId}, winner: ${winner}`);
 
